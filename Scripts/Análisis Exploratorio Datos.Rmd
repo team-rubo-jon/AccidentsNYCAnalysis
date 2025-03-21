@@ -9,6 +9,7 @@ output: html_document
 
 ```{r}
 library(tidyverse)
+library(viridis)
 ```
 
 ## Leer datos
@@ -54,13 +55,14 @@ contr_v5 <- data |>
   mutate(CONTR_V5 = CONTRIBUTING.FACTOR.VEHICLE.5) |> 
   filter(if_any(everything(), ~ . != "")) |> 
   count(CONTR_V5, name='FREQUENCY')
-
 ```
 
 ```{r}
-# Normalizar los valores en CONTR_V1
-contr_v1_cleaned <- contr_v1 |> 
-  mutate(CONTR_V1 = recode(CONTR_V1,
+contr_factors_cleaned <- data |> 
+  select(starts_with("CONTRIBUTING.FACTOR.VEHICLE")) |>  # Selecciona todas las columnas relevantes
+  pivot_longer(cols = everything(), names_to = "VEHICLE", values_to = "FACTOR") |>  # Convierte a formato largo
+  filter(FACTOR != "") |>  # Filtra valores vacíos  
+  mutate(FACTOR = recode(FACTOR,
     "Cell Phone (hand-Held)" = "Cell Phone (hand-held)",
     "Drugs (Illegal)" = "Drugs (illegal)",
     "Illnes" = "Illness",
@@ -69,29 +71,69 @@ contr_v1_cleaned <- contr_v1 |>
     "Unspecified" = "Unspecified",
     "Pedestrian/Bicyclist/Other Pedestrian Error/Confusion" = "Pedestrian Error/Confusion",
     "Aggressive Driving/Road Rage" = "Aggressive Driving"
-  ))
+  )) |> 
+  count(FACTOR, name = "FREQUENCY") |>  # Cuenta ocurrencias de cada factor
+  arrange(desc(FREQUENCY))  # Ordena de mayor a menor
 
-contr_v1_cleaned |> 
+```
+
+```{r}
+contr_factors_cleaned |> 
   arrange(FREQUENCY)
 ```
 
 ```{r}
-contr_v1 |> 
-  ggplot(aes(x = reorder(CONTR_V1, FREQUENCY), y = FREQUENCY)) + 
+contr_factors_cleaned |> 
+  ggplot(aes(x = reorder(FACTOR, FREQUENCY), y = FREQUENCY)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
   # coord_flip() +  # Rota el gráfico para mejor visualización
-  labs(title = "Frecuencia de Factores Contribuyentes",
+  labs(title = "Total Frecuencia de Factores Contribuyentes",
        x = "Factor Contribuyente",
        y = "Frecuencia") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle=45, hjust=1,size=6),
-        axis.title = element_text(size=7),
-        title = element_text(size=8),
+  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
+        axis.title = element_text(size=10),
+        title = element_text(size=12),
         axis.title.x=element_blank(),
-        legend.title = element_blank(),
-        legend.position = c(0.8,0.9),
-        legend.background = element_blank()
+        legend.title = element_blank()
         )
+```
+
+### Vamos a no considerar el factor 'Unspecified'
+
+```{r}
+contr_factors_cleaned |> 
+  filter(FACTOR != 'Unspecified', FREQUENCY > 50000) |> 
+  ggplot(aes(x = reorder(FACTOR, FREQUENCY), y = FREQUENCY, fill = FREQUENCY)) + 
+  geom_bar(stat = "identity") + 
+  # coord_flip() +  # Rota el gráfico para mejor visualización
+  scale_fill_viridis_c(option = "plasma", name = "Frecuencia") +  # Usa la paleta 'plasma' para mejor contraste
+  labs(title = "Frecuencia de Factores Contribuyentes en Accidentes",
+       x = "Factor Contribuyente",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
+        axis.text.y = element_text(size=7),
+        axis.title = element_text(size=12),
+        title = element_text(size=14, face="bold"),
+        legend.position = "right")  # Mueve la leyenda a la derecha
+
+contr_factors_cleaned |> 
+  filter(FACTOR != 'Unspecified', FREQUENCY < 50000) |> 
+  ggplot(aes(x = reorder(FACTOR, FREQUENCY), y = FREQUENCY, fill = FREQUENCY)) + 
+  geom_bar(stat = "identity") + 
+  # coord_flip() +  # Rota el gráfico para mejor visualización
+  scale_fill_viridis_c(option = "plasma", name = "Frecuencia") +  # Usa la paleta 'plasma' para mejor contraste
+  labs(title = "Frecuencia de Factores Contribuyentes en Accidentes",
+       x = "Factor Contribuyente",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
+        axis.text.y = element_text(size=7),
+        axis.title = element_text(size=12),
+        title = element_text(size=14, face="bold"),
+        legend.position = "right")  # Mueve la leyenda a la derecha
+
 ```
 
 ## Vehicle Type Code:
