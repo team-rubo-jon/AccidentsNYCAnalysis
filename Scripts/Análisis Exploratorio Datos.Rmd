@@ -15,15 +15,42 @@ library(viridis)
 ## Leer datos:
 
 ### Lectura Jon:
+
 ```{r}
 data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
-
 ### lectura Rubén:
+
 ```{r}
 data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
 View(data)
+```
+
+## Limpieza de datos
+
+```{r}
+data_cleaned <- data |> 
+  filter(if_any(LOCATION, ~ . != ""), LOCATION != '(0.0, 0.0)') |> 
+  select(-ZIP.CODE, -LATITUDE, -LONGITUDE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3)
+
+
+data_cleaned |> 
+  select(BOROUGH, ZIP.CODE) |> 
+  filter(BOROUGH=='')
+  
+# data |> 
+#   select(LATITUDE, LONGITUDE, LOCATION) |> 
+#   filter(is.na(LATITUDE), is.na(LONGITUDE), LOCATION == '')
+# 
+# tabla <- data |> 
+#   select(LOCATION, ON.STREET.NAME) |> 
+#   filter(LOCATION == '')
+# 
+# tabla <- tabla |> 
+#   filter(LOCATION == "") |>  # Filtra donde LOCATION está vacío
+#   count(ON.STREET.NAME, name = "FREQUENCY") |>  # Cuenta las ocurrencias
+#   arrange(desc(FREQUENCY))
 ```
 
 ## Contributing Factor Vehicle
@@ -226,7 +253,8 @@ ggplot(missing_data_long, aes(x = Variable, y = Missing_Count, fill = Variable))
   theme_minimal() +  # Tema minimalista
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar etiquetas del eje X
 ```
-Como tenemos más de 2 millones de datos faltantes en las variables __VEHICLE.TYPE.CODE.3__, __VEHICLE.TYPE.CODE.4__ y __VEHICLE.TYPE.CODE.5__. Hemos considerado eliminar las variables, ya que no aportan nada interesante al conjunto de datos.
+
+Como tenemos más de 2 millones de datos faltantes en las variables **VEHICLE.TYPE.CODE.3**, **VEHICLE.TYPE.CODE.4** y **VEHICLE.TYPE.CODE.5**. Hemos considerado eliminar las variables, ya que no aportan nada interesante al conjunto de datos.
 
 ```{r}
 dataVT_filtred <- data |> 
@@ -250,4 +278,3 @@ type_vehicle_cleaned <- dataVT_filtred |>
 type_vehicle_cleaned |> 
   arrange(FREQUENCY)
 ```
-
