@@ -3,28 +3,112 @@ title: "Análisis Exploratorio Datos"
 output: html_document
 ---
 
-# Análisis Exploratorio de los Datos
-
-## Cargar librerías
+## Cargar librerías y lectura de datos:
 
 ```{r}
 library(tidyverse)
 library(viridis)
 ```
 
-## Leer datos:
+```{r}
+#data <- read.csv("Vehicle_Collisions.csv")
+```
 
-### Lectura Jon:
+
+## Lectura datos (temporal)
+
+Jon:
 ```{r}
 data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
-
-### lectura Rubén:
+Rubén:
 ```{r}
 data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
-View(data)
 ```
+
+Mintxo:
+```{r}
+data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+```
+
+
+# INTRODUCCION
+
+En nuestro  conjunto de datos, se recoje información sobre accidentes de tráfico en la ciudad de Nueva York. La información proviene de la página de datos del gobierno de EEUU, específicamente del apartado correspondiente a la ciudad de Nueva York.
+
+Cada individuo corresponde a un accidente de tráfico, que se representa como una fila en el conjunto de datos. Las columnas incluyen información como la fecha y hora del accidente, la ubicación, el tipo de vehículo, y los factores contribuyentes al accidente entre otros muchos. Los accidentes se han almacenado desde el 1/01/2013 hasta la actualidad.
+
+Son accidentes en los que se ha rellenado un informe policial, por lo que podrían no incluirse algunos accidentes menores o accidentes que no han sido reportados a la policía. Ya que este informe es necesario para los accidentes donde hay fallecidos, o daños de al menos 1000$.
+
+Además, como la forma de recoger los datos ha ido cambiando a lo largo de los años, es posible que hace años no se almacenase información como puede ser las coordenadas, y que en los últimos años con la implementación de dispositivos electrónicos se almacenen las coordenadas exactas de cada accidente. También habrá diferencias en la información dependiendo de la forma en la que el agente de policia correspondiente haya guardado los datos, ya que no son sensores sin fallo los que determinan la mayoría de variables (como pueden ser el tipo de vehículo o factor contribuyentes de la colisión).
+
+Con todo esto, en nuestro trabajo trataremos de analizar las opciones que nos da el conjunto, e ir mostrando los resultados obtenidos visualmente. Y así poder encontrar patrones, agrupar los datos, o ver si podemos encontrar relación entre las variables que nos permitan entender mejor el problema tratado.
+
+
+# LIMPIEZA INICIAL Y MUESTREO
+
+En primer lugar, observamos que el dataset contiene más de 2 millones de filas, pero que además muchas de las variables están prácticamente vacías o con información redundante. Además, dada la naturaleza de los datos geolocalizados, hay ejemplos que no contienen esa información y no nos son de ayuda.
+
+Por tanto, vamos a realizar una primera limpieza del dataset, eliminando tanto variables redundantes o con poca información, como ejemplos que no nos aporten la información suficiente.
+
+
+Eliminar variables:
+```{r}
+data_cleaned <- data |> 
+  filter(if_any(LOCATION, ~ . != ""), LOCATION != '(0.0, 0.0)') |> 
+  select(-ZIP.CODE, -LATITUDE, -LONGITUDE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3)
+```
+Breve justificación de la eliminación de cada variable
+
+
+Eliminar individuos:
+```{r}
+
+```
+Breve justificación
+
+
+
+
+
+
+
+
+# ANALISIS DESCRIPTIVO
+
+Una vez obtenido el dataset con el que trabajremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas
+
+(Aqui añadir histogramas, matrices de correlacion de las variables, distribuciones de cada variable (violines)...)
+
+
+# METODOLOGÍA MULTIVARIANTE
+
+## PCA
+
+## Componentes principales
+
+## Clusterizaciones
+
+## Etc
+
+
+# CONCLUSIONES
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Contributing Factor Vehicle
 
@@ -226,7 +310,8 @@ ggplot(missing_data_long, aes(x = Variable, y = Missing_Count, fill = Variable))
   theme_minimal() +  # Tema minimalista
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar etiquetas del eje X
 ```
-Como tenemos más de 2 millones de datos faltantes en las variables __VEHICLE.TYPE.CODE.3__, __VEHICLE.TYPE.CODE.4__ y __VEHICLE.TYPE.CODE.5__. Hemos considerado eliminar las variables, ya que no aportan nada interesante al conjunto de datos.
+
+Como tenemos más de 2 millones de datos faltantes en las variables **VEHICLE.TYPE.CODE.3**, **VEHICLE.TYPE.CODE.4** y **VEHICLE.TYPE.CODE.5**. Hemos considerado eliminar las variables, ya que no aportan nada interesante al conjunto de datos.
 
 ```{r}
 dataVT_filtred <- data |> 
@@ -250,4 +335,3 @@ type_vehicle_cleaned <- dataVT_filtred |>
 type_vehicle_cleaned |> 
   arrange(FREQUENCY)
 ```
-
