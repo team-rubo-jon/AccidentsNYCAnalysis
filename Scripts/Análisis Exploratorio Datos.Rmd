@@ -69,8 +69,12 @@ Eliminar individuos:
 Breve justificación
 
 
+Una vez eliminados los individuos que no son de interes, seguimos teniendo demasiadas observaciones, por lo que para trabajar con los datos de forma más comoda hemos decidido hacer un muestreo de 20.000 observaciones
 
+Muestreo:
+```{r}
 
+```
 
 
 
