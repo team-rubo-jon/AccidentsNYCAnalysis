@@ -5,46 +5,47 @@ output: html_document
 
 ## Cargar librerías y lectura de datos:
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
 library(viridis)
+library(leaflet)
 ```
 
 ```{r}
 #data <- read.csv("Vehicle_Collisions.csv")
 ```
 
-
 ## Lectura datos (temporal)
 
 Jon:
+
 ```{r}
 data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
 Rubén:
+
 ```{r}
 data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
 ```
 
 Mintxo:
+
 ```{r}
 data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
-
 # INTRODUCCION
 
-En nuestro  conjunto de datos, se recoje información sobre accidentes de tráfico en la ciudad de Nueva York. La información proviene de la página de datos del gobierno de EEUU, específicamente del apartado correspondiente a la ciudad de Nueva York.
+En nuestro conjunto de datos, se recoje información sobre accidentes de tráfico en la ciudad de Nueva York. La información proviene de la página de datos del gobierno de EEUU, específicamente del apartado correspondiente a la ciudad de Nueva York.
 
 Cada individuo corresponde a un accidente de tráfico, que se representa como una fila en el conjunto de datos. Las columnas incluyen información como la fecha y hora del accidente, la ubicación, el tipo de vehículo, y los factores contribuyentes al accidente entre otros muchos. Los accidentes se han almacenado desde el 1/01/2013 hasta la actualidad.
 
-Son accidentes en los que se ha rellenado un informe policial, por lo que podrían no incluirse algunos accidentes menores o accidentes que no han sido reportados a la policía. Ya que este informe es necesario para los accidentes donde hay fallecidos, o daños de al menos 1000$.
+Son accidentes en los que se ha rellenado un informe policial, por lo que podrían no incluirse algunos accidentes menores o accidentes que no han sido reportados a la policía. Ya que este informe es necesario para los accidentes donde hay fallecidos, o daños de al menos 1000\$.
 
 Además, como la forma de recoger los datos ha ido cambiando a lo largo de los años, es posible que hace años no se almacenase información como puede ser las coordenadas, y que en los últimos años con la implementación de dispositivos electrónicos se almacenen las coordenadas exactas de cada accidente. También habrá diferencias en la información dependiendo de la forma en la que el agente de policia correspondiente haya guardado los datos, ya que no son sensores sin fallo los que determinan la mayoría de variables (como pueden ser el tipo de vehículo o factor contribuyentes de la colisión).
 
 Con todo esto, en nuestro trabajo trataremos de analizar las opciones que nos da el conjunto, e ir mostrando los resultados obtenidos visualmente. Y así poder encontrar patrones, agrupar los datos, o ver si podemos encontrar relación entre las variables que nos permitan entender mejor el problema tratado.
-
 
 # LIMPIEZA INICIAL Y MUESTREO
 
@@ -52,39 +53,37 @@ En primer lugar, observamos que el dataset contiene más de 2 millones de filas,
 
 Por tanto, vamos a realizar una primera limpieza del dataset, eliminando tanto variables redundantes o con poca información, como ejemplos que no nos aporten la información suficiente.
 
-
 Eliminar variables:
+
 ```{r}
 data_cleaned <- data |> 
   filter(if_any(LOCATION, ~ . != ""), LOCATION != '(0.0, 0.0)') |> 
-  select(-ZIP.CODE, -LATITUDE, -LONGITUDE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3)
+  select(-ZIP.CODE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3)
 ```
+
 Breve justificación de la eliminación de cada variable
 
-
 Eliminar individuos:
+
 ```{r}
 
 ```
-Breve justificación
 
+Breve justificación
 
 Una vez eliminados los individuos que no son de interes, seguimos teniendo demasiadas observaciones, por lo que para trabajar con los datos de forma más comoda hemos decidido hacer un muestreo de 20.000 observaciones
 
 Muestreo:
+
 ```{r}
 
 ```
-
-
-
 
 # ANALISIS DESCRIPTIVO
 
 Una vez obtenido el dataset con el que trabajremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas
 
 (Aqui añadir histogramas, matrices de correlacion de las variables, distribuciones de cada variable (violines)...)
-
 
 # METODOLOGÍA MULTIVARIANTE
 
@@ -96,23 +95,7 @@ Una vez obtenido el dataset con el que trabajremos, vamos a visualizar las difer
 
 ## Etc
 
-
 # CONCLUSIONES
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ## Contributing Factor Vehicle
 
@@ -338,4 +321,22 @@ type_vehicle_cleaned <- dataVT_filtred |>
 
 type_vehicle_cleaned |> 
   arrange(FREQUENCY)
+```
+
+## Mapas
+
+```{r}
+data_cleaned |> 
+  slice(:200000) |> 
+  leaflet() |> 
+  addTiles() |> 
+  addCircleMarkers(
+    lng = ~LONGITUDE,
+    lat = ~LATITUDE,
+    radius = 2,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.6,
+    popup = ~paste("Lat:", LATITUDE, "<br>Lon:", LONGITUDE)
+  )
 ```
