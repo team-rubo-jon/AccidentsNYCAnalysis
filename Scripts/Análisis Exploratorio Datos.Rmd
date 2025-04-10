@@ -7,9 +7,10 @@ output: html_document
 
 ## Cargar librerías
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
 library(viridis)
+library(leaflet)
 ```
 
 ## Leer datos:
@@ -32,12 +33,7 @@ View(data)
 ```{r}
 data_cleaned <- data |> 
   filter(if_any(LOCATION, ~ . != ""), LOCATION != '(0.0, 0.0)') |> 
-  select(-ZIP.CODE, -LATITUDE, -LONGITUDE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3)
-
-
-data_cleaned |> 
-  select(BOROUGH, ZIP.CODE) |> 
-  filter(BOROUGH=='')
+  select(-ZIP.CODE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3)
   
 # data |> 
 #   select(LATITUDE, LONGITUDE, LOCATION) |> 
@@ -277,4 +273,22 @@ type_vehicle_cleaned <- dataVT_filtred |>
 
 type_vehicle_cleaned |> 
   arrange(FREQUENCY)
+```
+
+## Mapas
+
+```{r}
+data_cleaned |> 
+  slice(0:20000) |> 
+  leaflet() |> 
+  addTiles() |> 
+  addCircleMarkers(
+    lng = ~LONGITUDE,
+    lat = ~LATITUDE,
+    radius = 2,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.6,
+    popup = ~paste("Lat:", LATITUDE, "<br>Lon:", LONGITUDE)
+  )
 ```
