@@ -9,6 +9,9 @@ output: html_document
 library(tidyverse)
 library(viridis)
 library(leaflet)
+library(ggplot2)
+library(dplyr)
+library(GGally)
 ```
 
 ```{r}
@@ -118,13 +121,116 @@ write.csv(data_sampled, "data_sampled.csv", row.names = FALSE)
 
 ### Leer muestra:
 ```{r}
-data_sampled <- read.csv("data_sampled.csv")
+data_sampled <- read.csv("Scripts/data_sampled.csv")
 ```
 
 
 # ANALISIS DESCRIPTIVO
 
-Una vez obtenido el dataset con el que trabajremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas
+Una vez obtenido el dataset con el que trabajaremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas.
+
+Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
+
+```{r}
+# Mostramos el histograma de los barrios, además del box plot:
+data_sampled |> 
+  ggplot(aes(x = BOROUGH)) +
+  geom_histogram(stat = "count", fill = "steelblue") +
+  labs(title = "Distribución de Accidentes por Barrio",
+       x = "Barrio",
+       y = "Número de Accidentes")
+```
+
+Para el caso de latitude y longitude, vamos a mostrar un histograma de la localización de los accidentes en el mapa de Nueva York. Para ello, vamos a usar la librería leaflet, que nos permite mostrar mapas interactivos. --> *DESCONOZCO PORQUÉ NO ME FUNCIONA, PROBAR A VER SI A VOSOTROS OS DEJA PORFA*
+
+```{r}
+data_sampled |> 
+  leaflet() |> 
+  addTiles() |> 
+  addCircleMarkers(
+    lng = ~LONGITUDE,
+    lat = ~LATITUDE,
+    radius = 2,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.6,
+    popup = ~paste("Lat:", LATITUDE, "<br>Lon:", LONGITUDE)
+  )
+```
+
+Ahora, vamos a mostrar un histograma comparando la cantidad de personas heridas frente a la cantidad de personas muertas:
+
+```{r}
+# 1. Crear un resumen total
+datos_resumen <- data_sampled |> 
+  summarise(
+    Total_Heridos = sum(NUMBER.OF.PERSONS.INJURED, na.rm = TRUE),
+    Total_Muertos = sum(NUMBER.OF.PERSONS.KILLED, na.rm = TRUE)
+  )
+
+# 2. Reestructurar para graficar
+datos_long <- tidyr::pivot_longer(
+  datos_resumen,
+  cols = everything(),
+  names_to = "Tipo",
+  values_to = "Personas"
+)
+
+# 3. Crear el histograma comparativo
+ggplot(datos_long, aes(x = Tipo, y = Personas, fill = Tipo)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Personas), vjust = -0.5, size = 3, fontface = "bold") +
+  labs(title = "Total de personas heridas vs muertas",
+       x = "", y = "Número de personas") +
+  scale_fill_manual(values = c("firebrick", "darkblue")) +
+  theme_minimal()
+```
+
+Ahora, podemos comprobar el número de viandantes, ciclistas y motoristas que han resultado heridos o muertos en los accidentes:
+
+```{r}
+# 1. Crear un resumen total
+datos_resumen <- data_sampled |> 
+  summarise(
+    Total_Heridos = sum(NUMBER.OF.PERSONS.INJURED, na.rm = TRUE),
+    Heridos_Pedestrians = sum(NUMBER.OF.PEDESTRIANS.INJURED, na.rm = TRUE),
+    Heridos_Cyclists = sum(NUMBER.OF.CYCLIST.INJURED, na.rm = TRUE),
+    Heridos_Motorists = sum(NUMBER.OF.MOTORIST.INJURED, na.rm = TRUE),
+    Total_Muertos = sum(NUMBER.OF.PERSONS.KILLED, na.rm = TRUE),
+    Muertos_Pedestrians = sum(NUMBER.OF.PEDESTRIANS.KILLED, na.rm = TRUE),
+    Muertos_Cyclists = sum(NUMBER.OF.CYCLIST.KILLED, na.rm = TRUE),
+    Muertos_Motorists = sum(NUMBER.OF.MOTORIST.KILLED, na.rm = TRUE)
+  )
+
+# 2. Pasar a formato largo
+datos_long <- datos_resumen |> 
+  pivot_longer(cols = everything(),
+               names_to = c("Estado", "Tipo"),
+               names_sep = "_",
+               values_to = "Total")
+
+# 3. Gráfico separado por estado (herido/muerto)
+ggplot(datos_long, aes(x = Tipo, y = Total, fill = Tipo)) +
+  geom_col() +
+  geom_text(aes(label = Total), vjust = -0.5, size = 4) +
+  facet_wrap(~Estado, scales = "free_y") +
+  labs(title = "Total de personas heridas y muertas por tipo",
+       x = "Tipo de persona", y = "Total") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+*HAY QUE HACERLO MÁS GRANDE PARA QUE SE VEA BIEN*
+
+*CON LOS TIPOS DE VEHÍCULOS NO SÉ MUY BIEN QUE HACER*
+
+Veamos ahora la matriz de correlación:
+
+```{r}
+ggpairs(data_sampled, columns = c("NUMBER.OF.PERSONS.KILLED", "NUMBER.OF.PEDESTRIANS.KILLED", "NUMBER.OF.CYCLIST.KILLED", "NUMBER.OF.MOTORIST.KILLED", "NUMBER.OF.PERSONS.INJURED", "NUMBER.OF.PEDESTRIANS.INJURED", "NUMBER.OF.CYCLIST.INJURED", "NUMBER.OF.MOTORIST.INJURED"), 
+        title = "Matriz de Correlación entre Variables")
+```
+*No se yo si la correlación tiene mucho sentigo hacerlo o si es significativa...*
+
 
 (Aqui añadir histogramas, matrices de correlacion de las variables, eliminar los individuos localizados muy lejos, distribuciones de cada variable (violines)...)
 
