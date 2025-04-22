@@ -12,6 +12,8 @@ library(leaflet)
 library(ggplot2)
 library(dplyr)
 library(GGally)
+library(factoextra)
+library(cluster)
 ```
 
 ```{r}
@@ -72,15 +74,14 @@ data_cleaned <- data |>
 
 Con el filtrado realizado, obtenemos un dataset mucho más manejable en cuanto a variables se refiere, que nos permitirá trabajar mejor el problema. Haciendo un pequeño resumen de las variables que nos quedan:
 
-- CRASH.DATE: Fecha en la que se produció el accidente (Date)
-- CRASH.TIME: Hora en la que se produció el accidente (Time)
-- BOROUGH: Barrio de Nueva York donde sucedió el accidente (String)
-- LATITUDE/LONGITUDE: Coordenadas geográficas (Int)
-- NUMBER.OF.(PERSONS/PEDESTRIANS/CYCLIST/MOTORIST).(KILLED/INJURIED): Número y tipo de personas implicadas en el accidente, diferenciando heridos y fallecidos (Int)
-- CONTRIBUTING.FACTOR.VEHICLE: Causa principal del accidente (String)
-- VEHICLE.TYPE.CODE.1: Tipo del primero vehiculo implicado (String)
-- VEHICLE.TYPE.CODE.2: Tipo del segundo vehiculo implicado (String)
-
+-   CRASH.DATE: Fecha en la que se produció el accidente (Date)
+-   CRASH.TIME: Hora en la que se produció el accidente (Time)
+-   BOROUGH: Barrio de Nueva York donde sucedió el accidente (String)
+-   LATITUDE/LONGITUDE: Coordenadas geográficas (Int)
+-   NUMBER.OF.(PERSONS/PEDESTRIANS/CYCLIST/MOTORIST).(KILLED/INJURIED): Número y tipo de personas implicadas en el accidente, diferenciando heridos y fallecidos (Int)
+-   CONTRIBUTING.FACTOR.VEHICLE: Causa principal del accidente (String)
+-   VEHICLE.TYPE.CODE.1: Tipo del primero vehiculo implicado (String)
+-   VEHICLE.TYPE.CODE.2: Tipo del segundo vehiculo implicado (String)
 
 ## Eliminar individuos:
 
@@ -103,10 +104,95 @@ data_cleaned <- data_cleaned |>
     !(LONGITUDE==0))
 ```
 
+## Renombrar variables:
+
+Antes de empezar a trabajar con los datos, vamos a renombrar ciertas variables para facilitar la programación.
+
+```{r}
+data_cleaned <- data_cleaned |> 
+  rename(
+    DATE = CRASH.DATE,
+    TIME = CRASH.TIME,
+    NUM_PERSONS_INJURED = NUMBER.OF.PERSONS.INJURED,
+    NUM_PERSONS_KILLED = NUMBER.OF.PERSONS.KILLED,
+    NUM_PEDESTRIANS_INJURED = NUMBER.OF.PEDESTRIANS.INJURED,
+    NUM_PEDESTRIANS_KILLED = NUMBER.OF.PEDESTRIANS.KILLED,
+    NUM_CYCLIST_INJURED = NUMBER.OF.CYCLIST.INJURED,
+    NUM_CYCLIST_KILLED = NUMBER.OF.CYCLIST.KILLED,
+    NUM_MOTORIST_INJURED = NUMBER.OF.MOTORIST.INJURED,
+    NUM_MOTORIST_KILLED = NUMBER.OF.MOTORIST.KILLED,
+    CAUSE = CONTRIBUTING.FACTOR.VEHICLE.1,
+    VEHICLE_1 = VEHICLE.TYPE.CODE.1,
+    VEHICLE_2 = VEHICLE.TYPE.CODE.2
+  )
+  
+```
+
+## Eliminación de filas incompletas:
+
+### Personas afectadas
+
+Vamos a comprobar si el número de personas heridas o fallecidas coincide con el número de heridos o fallecidos que se han dado en la fila. Para ello, vamos a crear una tabla con los diferentes tipos de heridos y fallecidos, y luego vamos a comprobar si el número total coincide con el número de personas heridas o fallecidas que se han dado en la fila. 
+
+```{r}
+type_injured <- data_cleaned |> 
+  select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
+  pivot_longer(cols = everything(), names_to = 'TYPE_OF_INJURED', values_to = 'NUMBER')
+
+# quiero saber el total de de cada tipo
+
+type_injured |> 
+  group_by(TYPE_OF_INJURED) |> 
+  summarise(NUMBER = sum(NUMBER)) |> 
+  arrange(desc(NUMBER))
+
+# ahora mostramos los indices de los que no coinciden
+filas_erroneas <- data_cleaned |> 
+  select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
+  mutate(ROW_ID = row_number(),
+         TOTAL_NUMBER_INJURED = rowSums(across(c(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED))),
+         TOTAL_NUMBER_KILLED = rowSums(across(c(NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)))) |>
+  select(ROW_ID, NUM_PERSONS_INJURED, TOTAL_NUMBER_INJURED, NUM_PERSONS_KILLED, TOTAL_NUMBER_KILLED) |> 
+  filter(NUM_PERSONS_INJURED != TOTAL_NUMBER_INJURED | NUM_PERSONS_KILLED != TOTAL_NUMBER_KILLED)
+
+filas_erroneas
+```
+
+Podemos ver como existen filas que no cumplen, por ello eliminamos las filas erroneas, aquellas filas cuyo numero de personas heridas o fallecidas no coincide con el total de heridos o fallecidos que se han dado en la fila.
+
+
+```{r}
+indices_erroneos <- filas_erroneas |> 
+  pull(ROW_ID)
+
+data_cleaned <- data_cleaned[-indices_erroneos, ]
+
+```
+
+## Eliminacion de valores incorrectos de la variable 'CAUSE'
+
+```{r}
+data_cleaned <- data_cleaned |> 
+  mutate(CAUSE = recode(CAUSE,
+    "Cell Phone (hand-Held)" = "Cell Phone (hand-held)",
+    "Drugs (Illegal)" = "Drugs (illegal)",
+    "Illnes" = "Illness",
+    "Other Electronic Device" = "Other Devices",
+    "Drugs (illegal)" = "Drugs (illegal)",
+    "Unspecified" = "Unspecified",
+    "Pedestrian/Bicyclist/Other Pedestrian Error/Confusion" = "Pedestrian Error/Confusion",
+    "Aggressive Driving/Road Rage" = "Aggressive Driving"
+  )) |> 
+  filter(CAUSE != 1, CAUSE != 80) 
+```
+
+
+## Muestreo:
 
 Una vez eliminados los individuos que no son de interes, el dataset se reduce a 893275 filas. Es más manejable pero seguimos teniendo demasiadas observaciones, por lo que para trabajar con los datos de forma más comoda hemos decidido hacer un muestreo de 20.000 observaciones
 
-## Muestreo:
 
 ```{r}
 set.seed(123)
@@ -116,14 +202,14 @@ data_sampled <- sample_n(data_cleaned, 20000)
 Como a partir de ahora trabajaremos con esta muestra en lugar del dataset completo, por comodidad lo almacenaremos en un nuevo archivo para solo tener que leer este.
 
 ```{r}
-write.csv(data_sampled, "data_sampled.csv", row.names = FALSE)
+write.csv(data_sampled, "Scripts/data_sampled.csv", row.names = FALSE)
 ```
 
 ### Leer muestra:
+
 ```{r}
 data_sampled <- read.csv("Scripts/data_sampled.csv")
 ```
-
 
 # ANALISIS DESCRIPTIVO
 
@@ -141,9 +227,9 @@ data_sampled |>
        y = "Número de Accidentes")
 ```
 
-Para el caso de latitude y longitude, vamos a mostrar un histograma de la localización de los accidentes en el mapa de Nueva York. Para ello, vamos a usar la librería leaflet, que nos permite mostrar mapas interactivos. --> *DESCONOZCO PORQUÉ NO ME FUNCIONA, PROBAR A VER SI A VOSOTROS OS DEJA PORFA*
+Para el caso de latitude y longitude, vamos a mostrar un mapa con la localización de los accidentes en el mapa de Nueva York. Para ello, vamos a usar la librería leaflet, que nos permite mostrar mapas interactivos.
 
-```{r}
+```{r, results='asis', echo=FALSE}
 data_sampled |> 
   leaflet() |> 
   addTiles() |> 
@@ -164,8 +250,8 @@ Ahora, vamos a mostrar un histograma comparando la cantidad de personas heridas 
 # 1. Crear un resumen total
 datos_resumen <- data_sampled |> 
   summarise(
-    Total_Heridos = sum(NUMBER.OF.PERSONS.INJURED, na.rm = TRUE),
-    Total_Muertos = sum(NUMBER.OF.PERSONS.KILLED, na.rm = TRUE)
+    Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+    Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE)
   )
 
 # 2. Reestructurar para graficar
@@ -188,18 +274,18 @@ ggplot(datos_long, aes(x = Tipo, y = Personas, fill = Tipo)) +
 
 Ahora, podemos comprobar el número de viandantes, ciclistas y motoristas que han resultado heridos o muertos en los accidentes:
 
-```{r}
+```{r, fig.width=15} 
 # 1. Crear un resumen total
 datos_resumen <- data_sampled |> 
   summarise(
-    Total_Heridos = sum(NUMBER.OF.PERSONS.INJURED, na.rm = TRUE),
-    Heridos_Pedestrians = sum(NUMBER.OF.PEDESTRIANS.INJURED, na.rm = TRUE),
-    Heridos_Cyclists = sum(NUMBER.OF.CYCLIST.INJURED, na.rm = TRUE),
-    Heridos_Motorists = sum(NUMBER.OF.MOTORIST.INJURED, na.rm = TRUE),
-    Total_Muertos = sum(NUMBER.OF.PERSONS.KILLED, na.rm = TRUE),
-    Muertos_Pedestrians = sum(NUMBER.OF.PEDESTRIANS.KILLED, na.rm = TRUE),
-    Muertos_Cyclists = sum(NUMBER.OF.CYCLIST.KILLED, na.rm = TRUE),
-    Muertos_Motorists = sum(NUMBER.OF.MOTORIST.KILLED, na.rm = TRUE)
+    Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+    Heridos_Pedestrians = sum(NUM_PEDESTRIANS_INJURED, na.rm = TRUE),
+    Heridos_Cyclists = sum(NUM_CYCLIST_INJURED, na.rm = TRUE),
+    Heridos_Motorists = sum(NUM_MOTORIST_INJURED, na.rm = TRUE),
+    Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE),
+    Muertos_Pedestrians = sum(NUM_PEDESTRIANS_KILLED, na.rm = TRUE),
+    Muertos_Cyclists = sum(NUM_CYCLIST_KILLED, na.rm = TRUE),
+    Muertos_Motorists = sum(NUM_MOTORIST_KILLED, na.rm = TRUE)
   )
 
 # 2. Pasar a formato largo
@@ -211,28 +297,85 @@ datos_long <- datos_resumen |>
 
 # 3. Gráfico separado por estado (herido/muerto)
 ggplot(datos_long, aes(x = Tipo, y = Total, fill = Tipo)) +
-  geom_col() +
+  geom_col(show.legend = TRUE) +  # Activamos la leyenda
   geom_text(aes(label = Total), vjust = -0.5, size = 4) +
   facet_wrap(~Estado, scales = "free_y") +
-  labs(title = "Total de personas heridas y muertas por tipo",
-       x = "Tipo de persona", y = "Total") +
+  labs(
+    title = "Total de personas heridas y muertas por tipo",
+    x = NULL,  # Quitamos la etiqueta del eje x
+    y = "Total",
+    fill = "Tipo de persona"  # Título de la leyenda
+  ) +
   theme_minimal() +
-  theme(legend.position = "none")
+  theme(
+    axis.text.x = element_blank(),       # Oculta los nombres debajo de las barras
+    axis.ticks.x = element_blank(),      # Oculta las marcas del eje x
+    legend.position = "bottom"           # Posiciona la leyenda debajo del gráfico
+  )
 ```
-*HAY QUE HACERLO MÁS GRANDE PARA QUE SE VEA BIEN*
+*El gráfico de la derecha es el mismo que el del anterior chunk, se podría quitar este o el otro, como veais*
 
 *CON LOS TIPOS DE VEHÍCULOS NO SÉ MUY BIEN QUE HACER*
 
 Veamos ahora la matriz de correlación:
 
-```{r}
-ggpairs(data_sampled, columns = c("NUMBER.OF.PERSONS.KILLED", "NUMBER.OF.PEDESTRIANS.KILLED", "NUMBER.OF.CYCLIST.KILLED", "NUMBER.OF.MOTORIST.KILLED", "NUMBER.OF.PERSONS.INJURED", "NUMBER.OF.PEDESTRIANS.INJURED", "NUMBER.OF.CYCLIST.INJURED", "NUMBER.OF.MOTORIST.INJURED"), 
+```{r, fig.width=15}
+ggpairs(data_sampled, columns = c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED", "NUM_PERSONS_KILLED", "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED"), 
         title = "Matriz de Correlación entre Variables")
 ```
 *No se yo si la correlación tiene mucho sentigo hacerlo o si es significativa...*
 
 
+Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
+
+## Variable 'BOROUGH'
+
+```{r}
+# Mostramos el histograma de los barrios, además del box plot:
+data_sampled |> 
+  ggplot(aes(x = BOROUGH)) +
+  geom_histogram(stat = "count", fill = "steelblue") +
+  labs(title = "Distribución de Accidentes por Barrio",
+       x = "Barrio",
+       y = "Número de Accidentes")
+```
+
+
+## Variable 'CAUSE'
+
+Primero, vamos a ver la frecuencia de los diferentes factores contribuyentes al accidente. Para ello, vamos a crear una tabla con los diferentes factores contribuyentes y su frecuencia.
+
+
+```{r}
+causes_cleaned <- data_sampled |> 
+  count(CAUSE, name = "FREQUENCY") |>  
+  arrange(desc(FREQUENCY))
+
+```
+
+Ahora vamos a graficar todos los factores contribuyentes, y su frecuencia. Para ello, vamos a usar un gráfico de barras.
+
+```{r}
+causes_cleaned |> 
+  ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  # coord_flip() +  # Rota el gráfico para mejor visualización
+  labs(title = "Total Frecuencia de Factores Contribuyentes",
+       x = "Factor Contribuyente",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
+        axis.title = element_text(size=10),
+        title = element_text(size=12),
+        axis.title.x=element_blank(),
+        legend.title = element_blank()
+        )
+```
+
+
 (Aqui añadir histogramas, matrices de correlacion de las variables, eliminar los individuos localizados muy lejos, distribuciones de cada variable (violines)...)
+
+
 
 # METODOLOGÍA MULTIVARIANTE
 
@@ -242,9 +385,184 @@ ggpairs(data_sampled, columns = c("NUMBER.OF.PERSONS.KILLED", "NUMBER.OF.PEDESTR
 
 ## Clusterizaciones
 
+### Variable 'CAUSE'
+
+#### Prueba 1
+
+Vamos a realizar una clusterización de los diferentes factores contribuyentes al accidente. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
+
+```{r}
+cause_norm <- causes_cleaned |>
+  mutate(FREQUENCY_NORM = scale(FREQUENCY)) |>
+  select(CAUSE, FREQUENCY_NORM)
+
+rownames(cause_norm) <- cause_norm$CAUSE
+cause_norm <- cause_norm |> 
+  select(-CAUSE)
+
+fviz_nbclust(x = cause_norm, 
+             FUNcluster = kmeans, 
+             method = "wss", 
+             k.max = 15, 
+             nstart = 50) +
+  labs(title = "Número óptimo de clusters (WSS)")
+
+```
+
+
+
+```{r}
+
+pam_clusters <- pam(x = cause_norm, k = 4, metric = "manhattan")
+
+# Visualizar con fviz_cluster usando dos dimensiones
+# fviz_cluster(pam_clusters, 
+#              data = cause_norm,
+#              show.clust.cent = TRUE, 
+#              ellipse.type = "euclid",
+#              star.plot = TRUE, 
+#              repel = TRUE) +
+#   labs(title = "Resultados clustering K-means (CAUSE)") +
+#   theme_bw() + 
+#   theme(legend.position = "none")
+
+
+resultados <- data.frame(ciudad = names(pam_clusters$cluster), cluster = as.factor(pam_clusters$cluster)) |> 
+    arrange(cluster)
+
+library(igraph)
+library(tidygraph)
+library(ggraph)
+
+datos_graph <- graph_from_data_frame(d = resultados, directed = TRUE)
+datos_graph <- as_tbl_graph(datos_graph)
+
+# Se añade información sobre a que cluster pertenece cada observacion
+datos_graph <- datos_graph |> 
+    activate(nodes) |> 
+    left_join(resultados, by = c(name = "ciudad"))
+
+ggraph(graph = datos_graph) + 
+  geom_edge_link(alpha = 0.5) + 
+  geom_node_point(aes(color = cluster)) +
+  geom_node_text(aes(label = name), repel = TRUE, alpha = 0.5, size = 3) + 
+  labs(title = "Resultados clustering K-means") +
+  theme_graph()
+
+```
+
+#### Prueba 2
+
+Realizar PCA con otro tipo de metricas.
+
+1. Crear una matriz de características para cada causa
+
+```{r}
+
+# Ejemplo: sumar heridos y muertos promedio por causa
+cause_features <- data_sampled |> 
+  group_by(CAUSE) |> 
+  summarise(
+    N = n(),
+    avg_injured = mean(NUM_PERSONS_INJURED, na.rm = TRUE),
+    avg_killed = mean(NUM_PERSONS_KILLED, na.rm = TRUE),
+    # avg_cyclist_injured = mean(NUM_CYCLIST_INJURED, na.rm = TRUE),
+    # avg_motorist_injured = mean(NUM_MOTORIST_INJURED, na.rm = TRUE),
+    # avg_pedestrian_injured = mean(NUM_PEDESTRIANS_INJURED, na.rm = TRUE)
+  ) |> 
+  ungroup()
+
+```
+
+2. Normalizar los datos y aplicar PCA
+
+```{r}
+# Normalizar
+cause_features_scaled <- cause_features |> 
+  column_to_rownames("CAUSE") |> 
+  scale()
+
+# PCA
+pca_res <- prcomp(cause_features_scaled, center = TRUE, scale. = TRUE)
+biplot(pca_res, main = "PCA de las causas")
+
+library(ggbiplot)
+ggbiplot(pca_res, choices = c(1,2))
+```
+3. Clustering
+
+```{r}
+
+# Determinar número de clusters óptimo
+fviz_nbclust(cause_features_scaled, kmeans, method = "wss")
+
+# K-means clustering
+set.seed(123)
+km <- kmeans(cause_features_scaled, centers = 7, nstart = 50)
+
+# Visualizar clusters
+fviz_cluster(km, data = cause_features_scaled, 
+             show.clust.cent = TRUE, 
+             repel = TRUE) +
+  theme_minimal() +
+  labs(title = "Clustering de causas de accidente")
+```
+#### Prueba 3
+
+Establecer similitudes entre los nombres de las causas.
+
+```{r}
+library(stringdist)
+
+# Crear matriz de distancias entre nombres de causas
+dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")  # método Jaro-Winkler, o "lv" para Levenshtein
+rownames(dist_matrix) <- causes_cleaned$CAUSE
+colnames(dist_matrix) <- causes_cleaned$CAUSE
+```
+
+Clustering jerarquico
+
+```{r}
+hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
+plot(hc, main = "Dendograma de Causas", cex = 0.7)
+
+
+fviz_dend(x = hc, cex = 0.5, main = "Dendrograma - ward", xlab = "observaciones",
+    ylab = "distancia", sub = "", horiz = TRUE)
+```
+
+Cortar endograma
+
+```{r, warning=FALSE}
+fviz_dend(x = hc,
+          k = 8,
+          k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
+          color_labels_by_k = TRUE,
+          rect = TRUE,
+          #rect_border = c("#2E9FDF", "#00AFBB", "#E7B800", "#FC4E07"),
+          rect_fill = TRUE,
+          cex = 0.5,
+          main = "Dendrograma - ward",
+          xlab = "observaciones",
+          ylab = "distancia",
+          sub = "")
+
+fviz_dend(x = hc, k = 8, k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
+    color_labels_by_k = TRUE, cex = 0.5, type = "circular")
+
+```
+
 ## Etc
 
 # CONCLUSIONES
+
+
+
+
+
+
+
+# Pruebas
 
 ## Contributing Factor Vehicle
 
