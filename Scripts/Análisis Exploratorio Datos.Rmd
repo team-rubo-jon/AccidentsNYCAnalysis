@@ -14,6 +14,7 @@ library(dplyr)
 library(GGally)
 library(factoextra)
 library(cluster)
+library(tsibble)
 ```
 
 ```{r}
@@ -217,6 +218,72 @@ Una vez obtenido el dataset con el que trabajaremos, vamos a visualizar las dife
 
 Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
 
+## Variables 'DATE' y 'TIME'
+
+```{r}
+data_time <- data_sampled |> 
+  mutate(DATE_DAY = as.Date(DATE, format = "%m/%d/%Y")) |>  
+  mutate(DATE_MONTH = yearmonth(DATE_DAY),
+         DATE_YEAR = year(DATE_DAY)) |> 
+  add_count(DATE_DAY, name = "FREQ_DAY") |> 
+  add_count(DATE_MONTH, name = "FREQ_MONTH") |> 
+  add_count(DATE_YEAR, name = "FREQ_YEAR") |>
+  select(DATE_DAY, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR) |> 
+  arrange(DATE_DAY)
+
+
+data_time |>
+  ggplot(aes(x = DATE_DAY, y = FREQ_DAY)) + 
+  geom_line(color = "steelblue") + 
+  labs(title = "Frecuencia de Accidentes por Fecha",
+       x = "Fecha",
+       y = "Frecuencia") +
+  theme_minimal()
+
+data_time |>
+  ggplot(aes(x = DATE_MONTH, y = FREQ_MONTH)) + 
+  geom_line(color = "steelblue") + 
+  labs(title = "Frecuencia de Accidentes por Mes",
+       x = "Mes",
+       y = "Frecuencia") +
+  theme_minimal()
+
+data_time |>
+  ggplot(aes(x = DATE_YEAR, y = FREQ_YEAR)) + 
+  geom_line(color = "steelblue") + 
+  labs(title = "Frecuencia de Accidentes por Año",
+       x = "Año",
+       y = "Frecuencia") +
+  theme_minimal()
+
+```
+```{r}
+# ahora quiero agrupar por meses, de enero a diciembre, cuantos accidentes hay
+data_time |> 
+  group_by(DATE_MONTH) |> 
+  summarise(FREQ_MONTH = sum(FREQ_MONTH)) |> 
+  mutate(MONTH = month(DATE_MONTH, label = TRUE)) |> 
+  ggplot(aes(x = MONTH, y = FREQ_MONTH)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  labs(title = "Frecuencia de Accidentes por Mes",
+       x = "Mes",
+       y = "Frecuencia") +
+  theme_minimal()
+
+# ahora por dia
+data_time |> 
+  ggplot(aes(x = DATE_YEAR, y = FREQ_YEAR)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  labs(title = "Frecuencia de Accidentes por Año",
+       x = "Mes",
+       y = "Frecuencia") +
+  theme_minimal()
+```
+Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
+
+
+## Variable 'BOROUGH'
+
 ```{r}
 # Mostramos el histograma de los barrios, además del box plot:
 data_sampled |> 
@@ -226,6 +293,8 @@ data_sampled |>
        x = "Barrio",
        y = "Número de Accidentes")
 ```
+
+## Variables 'LATITUDE' y 'LONGITUDE
 
 Para el caso de latitude y longitude, vamos a mostrar un mapa con la localización de los accidentes en el mapa de Nueva York. Para ello, vamos a usar la librería leaflet, que nos permite mostrar mapas interactivos.
 
@@ -243,6 +312,8 @@ data_sampled |>
     popup = ~paste("Lat:", LATITUDE, "<br>Lon:", LONGITUDE)
   )
 ```
+
+## Variables Personas Afectadas
 
 Ahora, vamos a mostrar un histograma comparando la cantidad de personas heridas frente a la cantidad de personas muertas:
 
@@ -315,7 +386,6 @@ ggplot(aes(x = Tipo, y = Total, fill = Tipo)) +
     legend.position = "bottom"           # Posiciona la leyenda debajo del gráfico
   )
 ```
-*El gráfico de la derecha es el mismo que el del anterior chunk, se podría quitar este o el otro, como veais*
 
 *CON LOS TIPOS DE VEHÍCULOS NO SÉ MUY BIEN QUE HACER*
 
@@ -360,6 +430,18 @@ causes_cleaned |>
         axis.title.x=element_blank(),
         legend.title = element_blank()
         )
+```
+
+```{r}
+data_sampled |> 
+  ggplot(aes(x = CAUSE, y = NUM_PERSONS_INJURED)) +
+  geom_boxplot(fill = "steelblue") +
+  labs(title = "Personas heridas según la causa del accidente",
+       x = "Causa (agrupadas las menos frecuentes)",
+       y = "Número de heridos") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 ```
 
 
@@ -443,7 +525,7 @@ ggraph(graph = datos_graph) +
 
 #### Prueba 2
 
-Realizar PCA con otro tipo de metricas.
+Rpealizar PCA con otro tio de metricas.
 
 1. Crear una matriz de características para cada causa
 
@@ -482,7 +564,6 @@ ggbiplot(pca_res, choices = c(1,2))
 3. Clustering
 
 ```{r}
-
 # Determinar número de clusters óptimo
 fviz_nbclust(cause_features_scaled, kmeans, method = "wss")
 
@@ -519,6 +600,7 @@ plot(hc, main = "Dendograma de Causas", cex = 0.7)
 
 fviz_dend(x = hc, cex = 0.5, main = "Dendrograma - ward", xlab = "observaciones",
     ylab = "distancia", sub = "", horiz = TRUE)
+
 ```
 
 Cortar endograma
@@ -541,6 +623,46 @@ fviz_dend(x = hc, k = 8, k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"
     color_labels_by_k = TRUE, cex = 0.5, type = "circular")
 
 ```
+
+Ahora vamos a agrupar las causas en los 8 grupos
+
+```{r}
+# Asignar cada causa a uno de los 8 clusters
+grupo_causas <- cutree(hc, k = 8)
+
+# Crear data frame con causa original y grupo asignado
+causas_grupo <- data.frame(
+  CAUSE = names(grupo_causas),
+  GRUPO_CAUSA = grupo_causas
+)
+
+# unimos al dataframe original
+data_sampled <- data_sampled |> 
+  left_join(causas_grupo, by = "CAUSE")
+
+
+```
+
+
+## Analisis discriminante 
+
+```{r}
+library(MASS)
+
+data_sampled$BOROUGH_NUM <- as.numeric(factor(data_sampled$BOROUGH))
+
+modelo_lda <- lda(formula = GRUPO_CAUSA ~ NUM_PERSONS_INJURED + NUM_PERSONS_KILLED + BOROUGH_NUM, data = data_sampled)
+
+new_data <- data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PERSONS_KILLED", "BOROUGH_NUM")]
+
+predicciones <- predict(object = modelo_lda, 
+                        newdata = data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PERSONS_KILLED", "NUM_PEDESTRIANS_INJURED", "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_INJURED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_INJURED", "NUM_MOTORIST_KILLED", "BOROUGH_NUM")], 
+                        method = "predictive")
+
+table(data_sampled$GRUPO_CAUSA, predicciones$class, dnn = c("Clase real", "Clase predicha"))
+
+```
+Igual no tiene mucho sentido, predice casi siempre el 1.
 
 ## Etc
 
