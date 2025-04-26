@@ -26,13 +26,13 @@ library(tsibble)
 Jon:
 
 ```{r}
-data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
+#data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
 Rubén:
 
 ```{r}
-data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
+#data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
 ```
 
 Fermin:
@@ -70,7 +70,7 @@ Por tanto, vamos a realizar una primera limpieza del dataset, eliminando tanto v
 
 ```{r}
 data_cleaned <- data |> 
-  select(-ZIP.CODE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3, -CONTRIBUTING.FACTOR.VEHICLE.2,-LOCATION)
+  dplyr::select(-ZIP.CODE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3, -CONTRIBUTING.FACTOR.VEHICLE.2,-LOCATION)
 ```
 
 Con el filtrado realizado, obtenemos un dataset mucho más manejable en cuanto a variables se refiere, que nos permitirá trabajar mejor el problema. Haciendo un pequeño resumen de las variables que nos quedan:
@@ -137,7 +137,7 @@ Vamos a comprobar si el número de personas heridas o fallecidas coincide con el
 
 ```{r}
 type_injured <- data_cleaned |> 
-  select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+  dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
          NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
   pivot_longer(cols = everything(), names_to = 'TYPE_OF_INJURED', values_to = 'NUMBER')
 
@@ -150,12 +150,12 @@ type_injured |>
 
 # ahora mostramos los indices de los que no coinciden
 filas_erroneas <- data_cleaned |> 
-  select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+  dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
          NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
   mutate(ROW_ID = row_number(),
          TOTAL_NUMBER_INJURED = rowSums(across(c(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED))),
          TOTAL_NUMBER_KILLED = rowSums(across(c(NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)))) |>
-  select(ROW_ID, NUM_PERSONS_INJURED, TOTAL_NUMBER_INJURED, NUM_PERSONS_KILLED, TOTAL_NUMBER_KILLED) |> 
+  dplyr::select(ROW_ID, NUM_PERSONS_INJURED, TOTAL_NUMBER_INJURED, NUM_PERSONS_KILLED, TOTAL_NUMBER_KILLED) |> 
   filter(NUM_PERSONS_INJURED != TOTAL_NUMBER_INJURED | NUM_PERSONS_KILLED != TOTAL_NUMBER_KILLED)
 
 filas_erroneas
@@ -203,13 +203,13 @@ data_sampled <- sample_n(data_cleaned, 20000)
 Como a partir de ahora trabajaremos con esta muestra en lugar del dataset completo, por comodidad lo almacenaremos en un nuevo archivo para solo tener que leer este.
 
 ```{r}
-write.csv(data_sampled, "Scripts/data_sampled.csv", row.names = FALSE)
+write.csv(data_sampled, "data_sampled.csv", row.names = FALSE)
 ```
 
 ### Leer muestra:
 
 ```{r}
-data_sampled <- read.csv("Scripts/data_sampled.csv")
+data_sampled <- read.csv("data_sampled.csv")
 ```
 
 # ANALISIS DESCRIPTIVO
@@ -228,7 +228,7 @@ data_time <- data_sampled |>
   add_count(DATE_DAY, name = "FREQ_DAY") |> 
   add_count(DATE_MONTH, name = "FREQ_MONTH") |> 
   add_count(DATE_YEAR, name = "FREQ_YEAR") |>
-  select(DATE_DAY, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR) |> 
+  dplyr::select(DATE_DAY, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR) |> 
   arrange(DATE_DAY)
 
 
@@ -466,11 +466,11 @@ Vamos a realizar una clusterización de los diferentes factores contribuyentes a
 ```{r}
 cause_norm <- causes_cleaned |>
   mutate(FREQUENCY_NORM = scale(FREQUENCY)) |>
-  select(CAUSE, FREQUENCY_NORM)
+  dplyr::select(CAUSE, FREQUENCY_NORM)
 
 rownames(cause_norm) <- cause_norm$CAUSE
 cause_norm <- cause_norm |> 
-  select(-CAUSE)
+  dplyr::select(-CAUSE)
 
 fviz_nbclust(x = cause_norm, 
              FUNcluster = kmeans, 
@@ -664,9 +664,37 @@ table(data_sampled$GRUPO_CAUSA, predicciones$class, dnn = c("Clase real", "Clase
 ```
 Igual no tiene mucho sentido, predice casi siempre el 1.
 
-## Etc
 
 # CONCLUSIONES
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -680,31 +708,31 @@ Igual no tiene mucho sentido, predice casi siempre el 1.
 
 ```{r}
 contr_v1 <- data |> 
-  select(CONTRIBUTING.FACTOR.VEHICLE.1) |> 
+  dplyr::select(CONTRIBUTING.FACTOR.VEHICLE.1) |> 
   mutate(CONTR_V1 = CONTRIBUTING.FACTOR.VEHICLE.1) |> 
   filter(if_any(everything(), ~ . != "")) |> 
   count(CONTR_V1, name='FREQUENCY')
 
 contr_v2 <- data |> 
-  select(CONTRIBUTING.FACTOR.VEHICLE.2) |> 
+  dplyr::select(CONTRIBUTING.FACTOR.VEHICLE.2) |> 
   mutate(CONTR_V2 = CONTRIBUTING.FACTOR.VEHICLE.2) |> 
   filter(if_any(everything(), ~ . != "")) |> 
   count(CONTR_V2, name='FREQUENCY')
 
 contr_v3 <- data |> 
-  select(CONTRIBUTING.FACTOR.VEHICLE.3) |> 
+  dplyr::select(CONTRIBUTING.FACTOR.VEHICLE.3) |> 
   mutate(CONTR_V3 = CONTRIBUTING.FACTOR.VEHICLE.3) |> 
   filter(if_any(everything(), ~ . != "")) |> 
   count(CONTR_V3, name='FREQUENCY')
 
 contr_v4 <- data |> 
-  select(CONTRIBUTING.FACTOR.VEHICLE.4) |> 
+  dplyr::select(CONTRIBUTING.FACTOR.VEHICLE.4) |> 
   mutate(CONTR_V4 = CONTRIBUTING.FACTOR.VEHICLE.4) |> 
   filter(if_any(everything(), ~ . != "")) |> 
   count(CONTR_V4, name='FREQUENCY')
 
 contr_v5 <- data |> 
-  select(CONTRIBUTING.FACTOR.VEHICLE.5) |> 
+  dplyr::select(CONTRIBUTING.FACTOR.VEHICLE.5) |> 
   mutate(CONTR_V5 = CONTRIBUTING.FACTOR.VEHICLE.5) |> 
   filter(if_any(everything(), ~ . != "")) |> 
   count(CONTR_V5, name='FREQUENCY')
@@ -712,7 +740,7 @@ contr_v5 <- data |>
 
 ```{r}
 contr_factors_cleaned <- data |> 
-  select(starts_with("CONTRIBUTING.FACTOR.VEHICLE")) |>  # Selecciona todas las columnas relevantes
+  dplyr::select(starts_with("CONTRIBUTING.FACTOR.VEHICLE")) |>  # Selecciona todas las columnas relevantes
   pivot_longer(cols = everything(), names_to = "VEHICLE", values_to = "FACTOR") |>  # Convierte a formato largo
   filter(FACTOR != "") |>  # Filtra valores vacíos  
   mutate(FACTOR = recode(FACTOR,
@@ -877,45 +905,4 @@ ggplot(missing_data_long, aes(x = Variable, y = Missing_Count, fill = Variable))
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotar etiquetas del eje X
 ```
 
-Como tenemos más de 2 millones de datos faltantes en las variables **VEHICLE.TYPE.CODE.3**, **VEHICLE.TYPE.CODE.4** y **VEHICLE.TYPE.CODE.5**. Hemos considerado eliminar las variables, ya que no aportan nada interesante al conjunto de datos.
 
-```{r}
-dataVT_filtred <- data |> 
-  dplyr::select(VEHICLE.TYPE.CODE.1, VEHICLE.TYPE.CODE.2)
-```
-
-### Frecuencia de los datos:
-
-Voy a mostrar los datos que tenemos en cada una de las variables:
-
-```{r}
-library(dplyr)
-# Primera variable:
-type_vehicle_cleaned <- dataVT_filtred |> 
-  select(VEHICLE.TYPE.CODE.1) |> 
-  pivot_longer(cols = everything(), names_to = "VEHICLE", values_to = "FACTOR") |>  # Convierte a formato largo
-  filter(!is.na(FACTOR) & FACTOR != "") |>  # Filtra NA y valores vacíos  
-  count(FACTOR, name = "FREQUENCY") |>  # Cuenta ocurrencias de cada factor
-  arrange(desc(FREQUENCY))  # Ordena de mayor a menor
-
-type_vehicle_cleaned |> 
-  arrange(FREQUENCY)
-```
-
-## Mapas
-
-```{r}
-data_cleaned |> 
-  slice(:200000) |> 
-  leaflet() |> 
-  addTiles() |> 
-  addCircleMarkers(
-    lng = ~LONGITUDE,
-    lat = ~LATITUDE,
-    radius = 2,
-    color = "red",
-    stroke = FALSE,
-    fillOpacity = 0.6,
-    popup = ~paste("Lat:", LATITUDE, "<br>Lon:", LONGITUDE)
-  )
-```
