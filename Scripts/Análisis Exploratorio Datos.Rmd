@@ -700,8 +700,6 @@ Igual no tiene mucho sentido, predice casi siempre el 1.
 
 
 
-
-
 # Pruebas
 
 ## Contributing Factor Vehicle
