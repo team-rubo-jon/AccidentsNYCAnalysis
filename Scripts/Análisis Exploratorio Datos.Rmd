@@ -15,6 +15,9 @@ library(GGally)
 library(factoextra)
 library(cluster)
 library(tsibble)
+library(psych)
+library(caret)
+library(MASS)
 ```
 
 ```{r}
@@ -209,8 +212,18 @@ write.csv(data_sampled, "data_sampled.csv", row.names = FALSE)
 ### Leer muestra:
 
 ```{r}
-data_sampled <- read.csv("data_sampled.csv")
+data_sampled <- read.csv("Scripts/data_sampled.csv")
 ```
+
+Añado una correción de las variables VECHICLE_1 y VEHICLE_2 para que luego no den problemas:
+
+```{r}
+# Convertir todo a mayúsculas:
+data_sampled$VEHICLE_1 <- toupper(data_sampled$VEHICLE_1)
+data_sampled$VEHICLE_2 <- toupper(data_sampled$VEHICLE_2)
+```
+
+Si es necesario, luego se puede añadir la corrección antes del muestre de datos.
 
 # ANALISIS DESCRIPTIVO
 
@@ -460,8 +473,6 @@ Realizar el test de KMO y la prueba de esfericidad de Bartlett para comprobar si
 1. Test de KMO: El test de KMO mide la adecuación de los datos para realizar un PCA. Un valor de KMO mayor a 0.6 indica que los datos son adecuados para realizar un PCA.
 
 ```{r}
-library(psych)
-
 datos_numeric <- data_sampled |> 
   select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
          NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
@@ -531,7 +542,6 @@ cortest.bartlett(cor(datos_muertos_scaled), n = nrow(datos_muertos_scaled))
 ```
 De nuevo, obtenemos la misma conclusión que en los dos casos anteriores. Por lo tanto, no es interesante realizar un PCA con los datos agrupados.
 
-## Componentes principales
 
 ## Clusterizaciones
 
@@ -567,7 +577,7 @@ plot(1:10, wss, type = "b", pch = 19,
 
 ```{r}
 set.seed(123)
-kmeans_result <- kmeans(data_scaled, centers = 4, nstart = 25)
+kmeans_result <- kmeans(data_scaled, centers = 6, nstart = 25)
 
 # Visualizar clústeres en el espacio PCA
 fviz_cluster(kmeans_result, data = data_scaled,
@@ -588,6 +598,8 @@ dist_matrix <- dist(data_scaled, method = "euclidean")
 # Realizar el clustering jerárquico
 hc <- hclust(dist_matrix, method = "complete") # --> Mirar a ver que método es mejor
 ```
+
+
 ```{r}
 # Visualizar el dendrograma
 plot(hc, labels = FALSE, hang = -1, main = "Dendrograma de Clustering Jerárquico")
@@ -601,6 +613,7 @@ table(clusters)
 ### Agrupar los datos por barrios y clusterizar:
 
 ```{r}
+# Este se puede borrar ya que no tiene mucho sentido:
 data_borough_sum <- data_sampled |> 
   group_by(BOROUGH) |> 
   summarise(
@@ -616,6 +629,18 @@ data_borough_sum <- data_sampled |>
   na.omit()
 
 ```
+
+```{r}
+# Sólo con el total de muertos y heridos:
+data_borough_sum <- data_sampled |> 
+  group_by(BOROUGH) |> 
+  summarise(
+    total_injured = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+    total_killed = sum(NUM_PERSONS_KILLED, na.rm = TRUE)
+  ) |> 
+  na.omit()
+```
+
 
 Escalar los datos:
 
@@ -633,13 +658,242 @@ hc <- hclust(dist_matrix, method = "complete")
 
 # Dendrograma
 plot(hc, labels = data_borough_sum$BOROUGH, main = "Dendrograma de barrios (suma total)")
-rect.hclust(hc, k = 4, border = "blue")  # Prueba con k = 2, 3, 4, etc.
+rect.hclust(hc, k = 3, border = "blue")  # Prueba con k = 2, 3, 4, etc.
 ```
-Añadir un gráfico de barras comparando las variables entre los clústeres.
 
-Hacer un mapa donde se coloree cada barrio según el clúster.
+El análisis de clúster jerárquico aplicado a los distritos de Nueva York ha dado como resultado una agrupación en tres clústeres bien diferenciados: por un lado, se agrupan el Bronx y Manhattan; por otro, Brooklyn y Queens; y finalmente, Staten Island queda separado en un grupo propio. Esta clasificación cobra sentido cuando se analiza en función de la densidad de población de cada distrito.
+
+Manhattan, con 27.330 habitantes por kilómetro cuadrado, y el Bronx, con 12.831, presentan las mayores densidades de población entre los distritos analizados. Esta alta concentración de personas suele asociarse a una mayor exposición al tráfico, lo que incrementa la probabilidad de accidentes y, por tanto, de víctimas. Esto justificaría que ambos formen parte del mismo grupo, ya que comparten patrones similares tanto en cuanto a intensidad del tráfico como al número total de heridos y fallecidos.
+
+En un segundo grupo aparecen Brooklyn y Queens, con densidades de población intermedias (14.400 y 8.104,7 habitantes por km² respectivamente). Aunque Brooklyn supera al Bronx en densidad, su comportamiento en términos de accidentes se asemeja más al de Queens, probablemente por la estructura urbana de ambos: grandes áreas residenciales, presencia de autopistas y una combinación de zonas densas y otras más dispersas. Esta mezcla da lugar a un número total de víctimas por accidentes más moderado, lo que explica su asociación en un mismo clúster.
+
+Por último, Staten Island se mantiene como un grupo aislado, con una densidad de apenas 1.782,2 habitantes por km². Este distrito, claramente menos poblado y urbanizado, muestra un patrón de accidentes significativamente distinto, con un número mucho menor de víctimas en comparación con el resto. Su baja densidad y características geográficas más suburbanas justifican su separación en un clúster independiente.
+
+Esta clasificación por clústeres, por tanto, se alinea coherentemente con la densidad de población de cada distrito y permite explicar diferencias en el comportamiento de los accidentes de tráfico a lo largo de la ciudad.
+
+Vamos a añadir un gráfico de barras comparando las variables entre los clústeres:
+
+1. Asignamos los clúster al dataframe:
+
+```{r}
+# Cortar el dendrograma para obtener 3 clústeres
+clusters <- cutree(hc, k = 3)
+
+# Añadir la columna de clúster al dataframe original
+data_borough_sum$cluster <- as.factor(clusters)
+
+```
+
+2. Convertimos a formato largo para ggplot:
+
+```{r}
+data_borough_long <- data_borough_sum |> 
+  pivot_longer(cols = c(total_injured, total_killed), 
+               names_to = "Variable", 
+               values_to = "Total")
+```
+
+3. Creamos el gráfico de barras:
+
+```{r}
+ggplot(data_borough_long, aes(x = Variable, y = Total, fill = cluster)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~BOROUGH) +
+  labs(title = "Comparación de heridos y muertos por clúster y barrio",
+       x = "Variable", y = "Total", fill = "Clúster") +
+  theme_minimal()
+
+```
+
+Este gráfico demuestra que nuestra hipótesis anterior tiene sentido, ya que el clúster es capaz de agrupar los distintos distritos de una manera muy correcta en función del número total de heridos y muertos.
 
 ## Análisis discriminante
+
+Vamos a predecir el distrito al que pertenece un accidente. Para ello vamos a aseguir los siguientes pasos:
+
+### 1. Seleccionar las variables predictoras y agrupar categorías poco frecuentes:
+
+```{r}
+# Agrupar las 10 categorías más frecuentes de VEHICLE_1
+top_veh_types <- data_sampled |> 
+  count(VEHICLE_1, sort = TRUE) |> 
+  slice_head(n = 10) |> 
+  pull(VEHICLE_1)
+
+data_sampled <- data_sampled |> 
+  mutate(VEHICLE_1 = ifelse(VEHICLE_1 %in% top_veh_types, VEHICLE_1, "OTROS"))
+
+# Agrupar las 10 categorías más frecuentes de VEHICLE_2
+top_veh_types <- data_sampled |> 
+  count(VEHICLE_2, sort = TRUE) |> 
+  slice_head(n = 10) |> 
+  pull(VEHICLE_2)
+
+data_sampled <- data_sampled |> 
+  mutate(VEHICLE_2 = ifelse(VEHICLE_2 %in% top_veh_types, VEHICLE_2, "OTROS"))
+
+# Agrupar las 10 categorías más frecuentes de CAUSE
+top_causes <- data_sampled |> 
+  count(CAUSE, sort = TRUE) |> 
+  slice_head(n = 10) |> 
+  pull(CAUSE)
+
+data_sampled <- data_sampled |> 
+  mutate(CAUSE = ifelse(CAUSE %in% top_causes, CAUSE, "OTROS"))
+```
+
+
+Creamos una columna de hora numérica: *VOY A PROBAR SIN AÑADIR HOUR, SINO INCLUYENDO TIME*
+
+```{r}
+data_sampled <- data_sampled |> 
+  mutate(HOUR = as.numeric(substr(TIME, 1, 2)))
+```
+
+Seleccionamos las variables: *VOY HACER SIN TIME, LATITUDE y LONGITUDE*
+
+```{r}
+data_lda <- data_sampled |> 
+  dplyr::select(BOROUGH,
+         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED,
+         NUM_PEDESTRIANS_INJURED, NUM_PEDESTRIANS_KILLED,
+         NUM_CYCLIST_INJURED, NUM_CYCLIST_KILLED,
+         NUM_MOTORIST_INJURED, NUM_MOTORIST_KILLED,
+         VEHICLE_1, VEHICLE_2, CAUSE) |>
+  na.omit()
+```
+
+
+### 2. Convertir las variables categóricas en dummies:
+
+```{r}
+data_lda_dummy <- dummyVars(BOROUGH ~ ., data = data_lda)
+data_lda_transformed <- predict(data_lda_dummy, newdata = data_lda)
+data_lda_final <- data.frame(BOROUGH = data_lda$BOROUGH, data_lda_transformed)
+```
+
+### 3. Crear un conjunto de entrenamiento y test:
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(data_lda_final$BOROUGH, p = 0.7, list = FALSE)
+train_data <- data_lda_final[train_index, ]
+test_data <- data_lda_final[-train_index, ]
+```
+
+### 4. Aplicamos el análisis discriminante:
+
+```{r}
+# Aplicar LDA
+lda_model <- lda(BOROUGH ~ ., data = train_data)
+lda_model
+
+```
+
+### 5. Evaluamos el modelo:
+
+```{r}
+predictions <- predict(lda_model, newdata = test_data)
+
+# Matriz de confusión
+table(Predicho = predictions$class, Real = test_data$BOROUGH)
+```
+
+### 6. Visualizar las dos primeras funciones discriminantes:
+
+```{r}
+lda_df <- data.frame(predictions$x, BOROUGH = test_data$BOROUGH)
+
+ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "Proyección LDA: Accidentes por Borough",
+       x = "Función discriminante 1",
+       y = "Función discriminante 2") +
+  theme_minimal()
+```
+
+Vemos que no tiene sentido hacer este análisis, sólo reliza buenas predicciones si disponemos de las variables LONGITUDE y LATITUDE. Pero estamos incurriendo a una especie de "trampa".
+
+Sin embargo, sí que puede ser interesante predecir la causa del accidente en función de distintas variables. Teniendo en cuenta que vamos a coger las 10 más frecuentes y el resto, se incluirá como causa OTROS:
+
+```{r}
+# 1. Crear variable VEHICLE_COUNT --> Si hay un segundo vehículo incluimos 2, sino 1.
+data_sampled <- data_sampled |> 
+  mutate(VEHICLE_COUNT = ifelse(is.na(VEHICLE_2), 1, 2))
+
+# 2. Quedarse con las 5 causas más frecuentes
+top_causes <- data_sampled |> 
+  count(VEHICLE_1, sort = TRUE) |> 
+  slice_head(n = 10) |> 
+  pull(VEHICLE_1)
+
+data_lda <- data_sampled |> 
+  filter(VEHICLE_1 %in% top_causes) |> 
+  mutate(CAUSE = factor(VEHICLE_1),
+         BOROUGH = factor(BOROUGH),
+         HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H"))) |> 
+  dplyr::select(CAUSE, HOUR, BOROUGH, VEHICLE_COUNT, 
+         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED) |> 
+  na.omit()
+
+# 3. Codificar variables categóricas (BOROUGH) como dummies
+data_dummies <- dummyVars(CAUSE ~ ., data = data_lda)
+data_transformed <- predict(data_dummies, newdata = data_lda)
+data_final <- data.frame(CAUSE = data_lda$CAUSE, data_transformed)
+
+# 4. Dividir en entrenamiento y prueba
+set.seed(123)
+train_index <- createDataPartition(data_final$CAUSE, p = 0.7, list = FALSE)
+train_data <- data_final[train_index, ]
+test_data <- data_final[-train_index, ]
+
+train_data <- train_data |> dplyr::select(-NUM_PERSONS_KILLED, -VEHICLE_COUNT)
+test_data  <- test_data  |> dplyr::select(-NUM_PERSONS_KILLED, -VEHICLE_COUNT)
+
+# 5. Modelo LDA
+lda_model <- lda(CAUSE ~ ., data = train_data)
+
+# 6. Predicción y matriz de confusión
+predictions <- predict(lda_model, newdata = test_data)
+conf_matrix <- table(Predicho = predictions$class, Real = test_data$CAUSE)
+print(conf_matrix)
+
+```
+
+## Random forest
+
+```{r}
+# Paquetes necesarios
+library(randomForest)
+
+# 1. 
+
+# 2. Crear conjunto de entrenamiento y test
+set.seed(42)
+n <- nrow(data_sampled)
+train_index <- sample(1:n, size = floor(0.7 * n))
+train_data <- data_sampled[train_index, ]
+test_data <- data_sampled[-train_index, ]
+
+# 3. Convertir variables categóricas a factor
+train_data <- train_data |> mutate(across(where(is.character), as.factor))
+test_data <- test_data |> mutate(across(where(is.character), as.factor))
+
+# 4. Ajustar modelo Random Forest
+rf_model <- randomForest(CAUSE ~ ., data = train_data, ntree = 100, importance = TRUE)
+
+# 5. Predicciones y matriz de confusión
+predictions <- predict(rf_model, newdata = test_data)
+conf_matrix <- table(Predicho = predictions, Real = test_data$CAUSE)
+print(conf_matrix)
+
+# 6. Importancia de variables
+importance(rf_model)
+varImpPlot(rf_model)
+
+```
+
+
 
 ## Análisis de correspondencia
 
