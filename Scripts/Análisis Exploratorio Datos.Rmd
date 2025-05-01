@@ -453,9 +453,195 @@ data_sampled |>
 
 ## PCA
 
+Vamos a realizar un análisis de componentes principales (PCA) para reducir la dimensionalidad de los datos y ver si podemos encontrar patrones en los datos. Sin embargo, lo primero que vamos hacer es comprobar si tiene sentido hacer un pca con los datos numéricos que tenemos. Aunque en la matriz de correlación ya hemos visto que no hay correlaciones significativas en los datos, vamos a comprobar mediante estadísticos si los datos son adecuados para realizar un PCA.
+
+Realizar el test de KMO y la prueba de esfericidad de Bartlett para comprobar si los datos son adecuados para realizar un PCA:
+
+1. Test de KMO: El test de KMO mide la adecuación de los datos para realizar un PCA. Un valor de KMO mayor a 0.6 indica que los datos son adecuados para realizar un PCA.
+
+```{r}
+library(psych)
+
+datos_numeric <- data_sampled |> 
+  select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+
+KMO(datos_numeric)
+
+```
+Observamos que todas las variables tienen un KMO menor a 0.6, por lo que no es interesante realizar un PCA.
+
+2. Test de esfericidad de Bartlett: 
+
+```{r}
+cortest.bartlett(cor(datos_numeric), n = nrow(datos_numeric))
+```
+El test de esfericidad de Bartlett acepta (p-valor<0.05) la hipótesis nula de que la matriz de correlación es una matriz identidad. Por lo tanto, los datos se encuentran correlados.
+
+En conclusión, pese a que los datos, según el test de esfericidad de Bartlett se encuentran correlados, no es interesante realizar un PCA, ya que el KMO no es adecuado. Sin embargo, igual es interesante analizar la posibilidad de realizar PCA agrupando las variables por heridos y muertos.
+
+### PCA con variables agrupadas:
+
+#### PCA con heridos
+
+```{r}
+# Seleccionar solo las variables de personas heridas
+datos_heridos <- data_sampled |> 
+  select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, 
+         NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED)
+
+# Escalar (normalizar) los datos
+datos_heridos_scaled <- scale(datos_heridos)
+
+```
+
+Igual que antes, analizamos la posibilidad de realizar un PCA con los datos agrupados. Para ello, vamos a realizar el test de KMO y la prueba de esfericidad de Bartlett.
+
+```{r}
+# Calcular KMO
+KMO(datos_heridos_scaled)
+
+# Test de Bartlett
+cortest.bartlett(cor(datos_heridos_scaled), n = nrow(datos_heridos_scaled))
+
+```
+
+De manera similar al caso general, obtenemos que no es interesante realizar un PCA, pese a que los datos se encuentran relacionados (p-valor<0.05 en el test de Bartlett) el KMO vuelve a rechazar la idea de realizar el PCA, obtenemos un valor muy por debajo de 0.6.
+
+#### PCA con muertos
+
+```{r}
+# Seleccionar solo las variables de personas muertas
+datos_muertos <- data_sampled |> 
+  select(NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, 
+         NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+
+# Escalar (normalizar) los datos
+datos_muertos_scaled <- scale(datos_muertos)
+```
+
+Al igual que antes, analizamos la posibilidad de realizar un PCA con los datos agrupados. Para ello, vamos a realizar el test de KMO y la prueba de esfericidad de Bartlett.
+
+```{r}
+# Calcular KMO
+KMO(datos_muertos_scaled)
+
+# Test de Bartlett
+cortest.bartlett(cor(datos_muertos_scaled), n = nrow(datos_muertos_scaled))
+```
+De nuevo, obtenemos la misma conclusión que en los dos casos anteriores. Por lo tanto, no es interesante realizar un PCA con los datos agrupados.
+
 ## Componentes principales
 
 ## Clusterizaciones
+
+### 1. Seleccionar variables numéricas relevantes:
+
+```{r}
+data_cluster <- data_sampled |> 
+  select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+
+# Escalar (normalizar) los datos
+data_scaled <- scale(data_cluster)
+```
+
+### 2. Determinar el número óptimo de clusters:
+
+```{r}
+wss <- vector()
+set.seed(123)
+for (k in 1:10) {
+  km <- kmeans(data_scaled, centers = k, nstart = 5)  # menos repeticiones
+  wss[k] <- km$tot.withinss
+}
+
+plot(1:10, wss, type = "b", pch = 19,
+     xlab = "Número de clusters",
+     ylab = "Suma de cuadrados intra-clúster (WSS)",
+     main = "Método del codo (optimizado)")
+
+```
+
+### 3. Realizar el clustering y visualizar:
+
+```{r}
+set.seed(123)
+kmeans_result <- kmeans(data_scaled, centers = 4, nstart = 25)
+
+# Visualizar clústeres en el espacio PCA
+fviz_cluster(kmeans_result, data = data_scaled,
+             ellipse.type = "norm",
+             geom = "point",
+             palette = "jco",
+             ggtheme = theme_minimal())
+
+```
+Vemos que no se obtiene nada claro. Vamos a probar con otro tipo de clustering, el clustering jerárquico. 
+
+### Clustering jerarquico
+
+```{r}
+# Calcular la matriz de distancias
+dist_matrix <- dist(data_scaled, method = "euclidean")
+
+# Realizar el clustering jerárquico
+hc <- hclust(dist_matrix, method = "complete") # --> Mirar a ver que método es mejor
+```
+```{r}
+# Visualizar el dendrograma
+plot(hc, labels = FALSE, hang = -1, main = "Dendrograma de Clustering Jerárquico")
+
+# Cortamos:
+rect.hclust(hc, k = 3, border = "red")
+clusters <- cutree(hc, k = 3)
+table(clusters)
+```
+
+### Agrupar los datos por barrios y clusterizar:
+
+```{r}
+data_borough_sum <- data_sampled |> 
+  group_by(BOROUGH) |> 
+  summarise(
+    total_injured = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+    total_killed = sum(NUM_PERSONS_KILLED, na.rm = TRUE),
+    total_ped_injured = sum(NUM_PEDESTRIANS_INJURED, na.rm = TRUE),
+    total_cyclist_injured = sum(NUM_CYCLIST_INJURED, na.rm = TRUE),
+    total_motorist_injured = sum(NUM_MOTORIST_INJURED, na.rm = TRUE),
+    total_ped_killed = sum(NUM_PEDESTRIANS_KILLED, na.rm = TRUE),
+    total_cyclist_killed = sum(NUM_CYCLIST_KILLED, na.rm = TRUE),
+    total_motorist_killed = sum(NUM_MOTORIST_KILLED, na.rm = TRUE)
+  ) |> 
+  na.omit()
+
+```
+
+Escalar los datos:
+
+```{r}
+data_scaled <- data_borough_sum |> 
+  select(-BOROUGH) |> 
+  scale()
+```
+
+Clustering jerárquico:
+
+```{r}
+dist_matrix <- dist(data_scaled)
+hc <- hclust(dist_matrix, method = "complete")
+
+# Dendrograma
+plot(hc, labels = data_borough_sum$BOROUGH, main = "Dendrograma de barrios (suma total)")
+rect.hclust(hc, k = 4, border = "blue")  # Prueba con k = 2, 3, 4, etc.
+```
+Añadir un gráfico de barras comparando las variables entre los clústeres.
+
+Hacer un mapa donde se coloree cada barrio según el clúster.
+
+## Análisis discriminante
+
+## Análisis de correspondencia
 
 ### Variable 'CAUSE'
 
