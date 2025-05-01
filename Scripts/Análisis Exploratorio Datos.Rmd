@@ -288,7 +288,7 @@ data_time |>
   ggplot(aes(x = DATE_YEAR, y = FREQ_YEAR)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
   labs(title = "Frecuencia de Accidentes por Año",
-       x = "Mes",
+       x = "Año",
        y = "Frecuencia") +
   theme_minimal()
 ```
@@ -302,8 +302,8 @@ Se puede ver claramente como en el año del covid la frecuencia de accidentes di
 data_sampled |> 
   ggplot(aes(x = BOROUGH)) +
   geom_histogram(stat = "count", fill = "steelblue") +
-  labs(title = "Distribución de Accidentes por Barrio",
-       x = "Barrio",
+  labs(title = "Distribución de Accidentes por Distrito",
+       x = "Distrito",
        y = "Número de Accidentes")
 ```
 
@@ -806,7 +806,7 @@ lda_df <- data.frame(predictions$x, BOROUGH = test_data$BOROUGH)
 
 ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
   geom_point(alpha = 0.5) +
-  labs(title = "Proyección LDA: Accidentes por Borough",
+  labs(title = "Proyección LDA: Accidentes por distrito",
        x = "Función discriminante 1",
        y = "Función discriminante 2") +
   theme_minimal()
@@ -866,14 +866,36 @@ print(conf_matrix)
 # Paquetes necesarios
 library(randomForest)
 
-# 1. 
+# 1. Agrupar las poco frecuentes:
+
+# Función para agrupar niveles poco frecuentes
+group_rare_levels <- function(x, threshold = 0.01) {
+  freq <- prop.table(table(x))
+  rare_levels <- names(freq[freq < threshold])
+  x <- as.character(x)
+  x[x %in% rare_levels] <- "OTROS"
+  factor(x)
+}
+
+# Aplicar a los datos
+data_sampled <- data_sampled |> 
+  mutate(
+    VEHICLE_1 = group_rare_levels(VEHICLE_1),
+    VEHICLE_2 = group_rare_levels(VEHICLE_2),
+    CAUSE = group_rare_levels(CAUSE)
+  )
+
+data_sampled <- data_sampled |> 
+  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")))
 
 # 2. Crear conjunto de entrenamiento y test
 set.seed(42)
 n <- nrow(data_sampled)
 train_index <- sample(1:n, size = floor(0.7 * n))
-train_data <- data_sampled[train_index, ]
-test_data <- data_sampled[-train_index, ]
+train_data <- data_sampled[train_index, ] |> 
+  dplyr::select(-TIME, -DATE)
+test_data <- data_sampled[-train_index, ] |> 
+  dplyr::select(-TIME, -DATE)
 
 # 3. Convertir variables categóricas a factor
 train_data <- train_data |> mutate(across(where(is.character), as.factor))
@@ -885,16 +907,79 @@ rf_model <- randomForest(CAUSE ~ ., data = train_data, ntree = 100, importance =
 # 5. Predicciones y matriz de confusión
 predictions <- predict(rf_model, newdata = test_data)
 conf_matrix <- table(Predicho = predictions, Real = test_data$CAUSE)
-print(conf_matrix)
+as.table(conf_matrix)
 
 # 6. Importancia de variables
 importance(rf_model)
 varImpPlot(rf_model)
 
+
+
 ```
 
+### Gráficas de resultados:
 
+#### Matriz de confusión:
 
+```{r}
+# Convertir la matriz de confusión en un formato más adecuado para ggplot
+conf_matrix_df <- as.data.frame(as.table(conf_matrix))
+
+# Graficar la matriz de confusión
+ggplot(conf_matrix_df, aes(x = Predicho, y = Real, fill = Freq)) + 
+  geom_tile() + 
+  geom_text(aes(label = Freq), color = "white", size = 4) + 
+  scale_fill_gradient(low = "white", high = "blue") + 
+  theme_minimal() +
+  labs(title = "Matriz de Confusión", x = "Predicho", y = "Real")
+```
+
+#### Curva ROC:
+
+```{r}
+library(pROC)
+
+# Calcular la curva ROC
+roc_curve <- roc(test_data$CAUSE, as.numeric(predictions))
+plot(roc_curve, main = "Curva ROC")
+```
+
+#### Importancia de las variables:
+
+```{r}
+# Visualizar la importancia de las variables con un gráfico
+var_imp <- importance(rf_model)
+var_imp_df <- data.frame(Variable = rownames(var_imp), Importance = var_imp[, 1])
+
+# Graficar
+ggplot(var_imp_df, aes(x = reorder(Variable, Importance), y = Importance)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Importancia de las Variables", x = "Variable", y = "Importancia")
+
+```
+
+#### Distribución de las predicciones
+
+```{r}
+# Gráfico de distribución de las predicciones y las clases reales
+ggplot(data.frame(Predicho = predictions, Real = test_data$CAUSE), aes(x = Predicho, fill = Real)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Distribución de Predicciones vs Clases Reales", x = "Predicción", y = "Frecuencia")
+
+```
+
+#### Gráfico de dependencia parcial:
+
+```{r}
+# Gráfico de dependencia parcial
+library(pdp)
+partial_plot <- partial(rf_model, pred.var = "HOUR", grid.resolution = 50)
+plot(partial_plot)
+
+```
+
+ 
 ## Análisis de correspondencia
 
 ### Variable 'CAUSE'
