@@ -18,6 +18,7 @@ library(tsibble)
 library(psych)
 library(caret)
 library(MASS)
+library(ca)
 ```
 
 ```{r}
@@ -981,6 +982,88 @@ plot(partial_plot)
 
  
 ## Análisis de correspondencia
+
+### 1. Tipo de vehiculo y causa:
+
+```{r, fig.width=15}
+# Crear una tabla de contingencia
+contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$CAUSE)
+
+# Realizar el análisis de correspondencia
+ca_result <- ca(contingency_table)
+
+# Resumen del análisis
+summary(ca_result)
+
+# Visualizar el gráfico de correspondencia
+plot(ca_result)
+```
+
+### 2. Tipo de vehiculo y hora:
+
+```{r, fig.width=15}
+# Crear una tabla de contingencia
+contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$HOUR)
+
+# Realizar el análisis de correspondencia
+ca_result <- ca(contingency_table)
+
+# Resumen del análisis
+summary(ca_result)
+
+# Visualizar el gráfico de correspondencia
+plot(ca_result)
+```
+
+
+### 3. Causa del accidente y hora:
+
+```{r}
+# Crear una tabla de contingencia
+contingency_table <- table(data_sampled$CAUSE, data_sampled$HOUR)
+
+# Realizar el análisis de correspondencia
+ca_result <- ca(contingency_table)
+
+# Resumen del análisis
+summary(ca_result)
+
+# Visualizar el gráfico de correspondencia
+plot(ca_result)
+```
+
+### 4. Causa del accidente y día de la semana: 
+
+*NO PUEDO OBTENER EL DÍA DE LA SEMANA DE TODOS, PERO IGUAL CON LOS QUE TENEMOS NOS BASTA*
+
+```{r}
+# Extraer el día de la semana de la variable TIME
+data_sampled$DAY_OF_WEEK <- weekdays(as.Date(data_sampled$DATE, format = "%d/%m/%Y"))
+
+# Crear una tabla de contingencia
+contingency_table <- table(data_sampled$CAUSE, data_sampled$DAY_OF_WEEK)
+
+# Realizar el análisis de correspondencia
+ca_result <- ca(contingency_table)
+
+# Resumen del análisis
+summary(ca_result)
+
+# Visualizar el gráfico de correspondencia
+plot(ca_result)
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Variable 'CAUSE'
 
