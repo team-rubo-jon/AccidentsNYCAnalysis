@@ -7,21 +7,23 @@ library(zoo)
 
 data_sampled <- read.csv("data_sampled.csv")
 
-# Supón que ya tienes cargado 'data_sampled'
-data_time <- data_sampled |> 
-  mutate(DATE = as.Date(DATE, format = "%Y-%m-%d")) |> 
+# Procesamiento de datos
+data_time <- data_sampled |>
+  mutate(DATE = as.Date(DATE, format = "%Y-%m-%d")) |>
   mutate(DATE_MONTH = yearmonth(DATE),
-         DATE_YEAR = year(DATE)) |> 
-  add_count(DATE, name = "FREQ_DAY") |> 
-  add_count(DATE_MONTH, name = "FREQ_MONTH") |> 
+         DATE_YEAR = year(DATE)) |>
+  add_count(DATE, name = "FREQ_DAY") |>
+  add_count(DATE_MONTH, name = "FREQ_MONTH") |>
   add_count(DATE_YEAR, name = "FREQ_YEAR") |>
-  dplyr::select(DATE, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR) |> 
+  dplyr::select(DATE, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR, BOROUGH) |>
   arrange(DATE)
 
 # Obtener fechas mínimas y máximas para el rango
 min_date <- min(data_time$DATE)
 max_date <- max(data_time$DATE)
 
+# Obtener lista única de barrios
+borough_choices <- unique(na.omit(data_sampled$BOROUGH))
 
 # Crear tema personalizado
 ny_theme <- bs_theme(
@@ -37,7 +39,7 @@ ny_theme <- bs_theme(
   code_font = font_google("Fira Code")
 )
 
-# Tema personalizado para todos los gráficos al estilo NY
+# Tema personalizado para gráficos
 theme_nyc <- function() {
   theme_minimal(base_family = "Roboto Condensed") +
     theme(
@@ -57,95 +59,280 @@ theme_nyc <- function() {
     )
 }
 
-
 # UI
 ui <- navbarPage(
   title = div(
-    icon("car-crash"), 
+    icon("car-crash"),
     tags$h1("NYC Accident Dashboard", class = "text-secondary", style = "margin: 0; font-family: 'Bebas Neue';")
   ),
   theme = ny_theme,
   
+  # Usar un desplegable para el "Menú Principal"
   tabPanel(
-    tags$div("Frecuencia de Accidentes 🚦", style = "font-size: 18px; font-weight: bold;"),
+    tags$div("Visualización de datos 📊", style = "font-size: 18px; font-weight: bold;"),
     sidebarLayout(
       sidebarPanel(
-        h3("Configuración de visualización"),
-        
-        # Widget para seleccionar el barrio
-        selectInput("borough", "Seleccionar Barrio:",
-                    choices = c("Todos", unique(data_sampled$BOROUGH)),
-                    selected = "Todos"),
-        
-        # Widget para tipo de agregación temporal
-        selectInput("freq_type", "Seleccionar frecuencia temporal:",
-                    choices = c("Diario" = "daily", "Mensual" = "monthly", "Anual" = "yearly"),
-                    selected = "daily"),
-        
-        # Rango de fechas
-        dateRangeInput(
-          'date_range', 'Filtrar por rango de fechas',
-          start = min_date, end = max_date,
-          min = min_date, max = max_date,
-          format = 'yyyy-mm-dd', startview = 'year',
-          language = 'es', separator = " a "
+        # Selector desplegable en lugar de radioButtons
+        selectInput(
+          "main_view",
+          "Seleccionar vista:",
+          choices = c(
+            "Frecuencia de Accidentes 🚦" = "freq",
+            "Frecuencia de Accidentes por barrio 🏙️"= "freq_bar",
+            "Heridos vs Muertos 💀 " = "var", 
+            "Frecuencia de Causas 🚑" = "causes"
+          ),
+          selected = "freq"
         ),
         
-        # Slider para seleccionar el número de bins
-        sliderInput("num_bins", "Número de Bins:", 
-                    min = 5, max = 100, value = 30, step = 5)
+        # Panel condicional para frecuencia de accidentes
+        conditionalPanel(
+          condition = "input.main_view == 'freq'",
+          h4("Configuración de Frecuencia Temporal"),
+          wellPanel(
+            h4("Configuración del Gráfico Temporal"),
+            selectInput(
+              "freq_type", 
+              "Frecuencia temporal:",
+              choices = c("Diario" = "daily", "Mensual" = "monthly", "Anual" = "yearly"),
+              selected = "daily"
+            ),
+            radioButtons(
+              "graph_type",
+              "Tipo de gráfico:",
+              choices = c("Barras" = "bar", "Líneas" = "line", "Combinado" = "combo"),
+              selected = "combo"
+            ),
+            dateRangeInput(
+              'date_range_freq', 
+              'Rango de fechas:',
+              start = min_date, 
+              end = max_date,
+              min = min_date, 
+              max = max_date,
+              format = 'yyyy-mm-dd', 
+              startview = 'year',
+              language = 'es', 
+              separator = " a "
+            )
+          )
+        ),
+        
+        # Panel condicional para frecuencia de barrios
+        conditionalPanel(
+          condition = "input.main_view == 'freq_bar'",
+          h4("Configuración de Gráficos por Barrio"),
+          
+          checkboxGroupInput(
+            "borough_freq", 
+            "Seleccionar Barrio(s):",
+            choices = borough_choices,
+            selected = borough_choices
+          ),
+          
+          actionButton("select_all_freq", "Seleccionar Todos"),
+          actionButton("deselect_all_freq", "Deseleccionar Todos"),
+          
+          dateRangeInput(
+            'date_range_freq', 
+            'Rango de fechas:',
+            start = min_date, 
+            end = max_date,
+            min = min_date, 
+            max = max_date,
+            format = 'yyyy-mm-dd', 
+            startview = 'year',
+            language = 'es', 
+            separator = " a "
+          )
+        ),
+        
+        # Panel condicional para heridos y muertos
+        conditionalPanel(
+          condition = "input.main_view == 'var'",
+          h4("Configuración de Variables"),
+          selectInput("borough", "Seleccionar Barrio:",
+                      choices = c("Todos", unique(data_sampled$BOROUGH)),
+                      selected = "Todos"),
+          dateRangeInput(
+            'date_range_var', 
+            'Filtrar por rango de fechas',
+            start = min_date, 
+            end = max_date,
+            min = min_date, 
+            max = max_date,
+            format = 'yyyy-mm-dd', 
+            startview = 'year',
+            language = 'es', 
+            separator = " a "
+          )
+        ),
+        
+        # Panel para seleccionar el número de causas a mostrar
+        conditionalPanel(
+          condition = "input.main_view == 'causes'",
+          h4("Configuración de Variables"),
+          selectInput("borough", "Seleccionar Barrio:",
+                      choices = c("Todos", unique(data_sampled$BOROUGH)),
+                      selected = "Todos"),
+          dateRangeInput(
+            'date_range_var', 
+            'Filtrar por rango de fechas',
+            start = min_date, 
+            end = max_date,
+            min = min_date, 
+            max = max_date,
+            format = 'yyyy-mm-dd', 
+            startview = 'year',
+            language = 'es', 
+            separator = " a "
+          ),
+          
+          # Slider para elegir el número de causas a mostrar
+          sliderInput(
+            "top_causes", 
+            "Número de causas más frecuentes:",
+            min = 5, 
+            max = length(unique(data_sampled$CAUSE)), 
+            value = 10,
+            step = 1
+          )
+        )
       ),
       
       mainPanel(
-        tabsetPanel(
-          tabPanel('Accident Plot', plotOutput(outputId = 'accident_plot'), textOutput("summary_text")),
-          tabPanel('Accident Bar', plotOutput(outputId = 'accident_bar')),
-          tabPanel('Accident by Borough', plotOutput(outputId = 'accident_borough')),
-          tabPanel('Bar Chart Stacked by neighborhood', plotOutput(outputId = 'accident_evolution'))
+        conditionalPanel(
+          condition = "input.main_view == 'freq'",
+          tabsetPanel(
+            tabPanel('Gráfico Temporal Combinado', 
+                     plotOutput(outputId = 'combined_plot'), 
+                     textOutput("summary_text")),
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.main_view == 'freq_bar'",
+          tabsetPanel(
+            tabPanel('Distribución por Barrio', plotOutput(outputId = 'accident_borough')),
+            tabPanel('Evolución por Barrio', plotOutput(outputId = 'accident_evolution'))
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.main_view == 'var'",
+          tabsetPanel(
+            tabPanel('Heridos y Fallecidos', plotOutput(outputId = 'injury_death_plot')),
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.main_view == 'causes'",
+          tabsetPanel(
+            tabPanel('Causas de Accidentes', plotOutput(outputId = 'frequency_of_causes'))
+          )
         )
       )
     )
   ),
   
+  # Panel para los mapas
   tabPanel(
-    tags$div("Gráficos de Variables 📊", style = "font-size: 18px; font-weight: bold;"),
+    tags$div("Mapas 🗺️", style = "font-size: 18px; font-weight: bold;"),
     sidebarLayout(
       sidebarPanel(
-        h3("Configuración de visualización"),
+
+      ),
+      mainPanel(
+
+      )
+    )
+  ),
+  
+  # Panel para los analisis
+  tabPanel(
+    tags$div("Análisis de interés 💡️", style = "font-size: 18px; font-weight: bold;"),
+    sidebarLayout(
+      sidebarPanel(
+        # Selector desplegable
+        selectInput(
+          "main_view",
+          "Seleccionar vista:",
+          choices = c(
+            "PCA 🔍" = "pca",
+            "Análisis Cluster 💠️"= "cluster"
+          ),
+          selected = "pca"
+        ),
         
-        # Widget para seleccionar el barrio
-        selectInput("borough", "Seleccionar Barrio:",
-                    choices = c("Todos", unique(data_sampled$BOROUGH)),
-                    selected = "Todos"),
+        # Panel condicional para el pca
+        conditionalPanel(
+          condition = "input.main_view == 'pca'"
+
+        ),
         
-        # Rango de fechas
-        dateRangeInput(
-          'date_range', 'Filtrar por rango de fechas',
-          start = min_date, end = max_date,
-          min = min_date, max = max_date,
-          format = 'yyyy-mm-dd', startview = 'year',
-          language = 'es', separator = " a "
-        )
+        # Panel condicional para el cluster
+        conditionalPanel(
+          condition = "input.main_view == 'cluster'"
+          
+        ),
       ),
       
       mainPanel(
-        tabsetPanel(
-          tabPanel('Frequency of injured and deaths', plotOutput(outputId = 'injury_death_plot')),
-          tabPanel('Frequency of causes', plotOutput(outputId = 'frequency_of_causes'))
+        conditionalPanel(
+          condition = "input.main_view == 'pca'",
+          tabsetPanel(
+            tabPanel('PCA', plotOutput(outputId = 'pca'))
+          )
+        ),
+        
+        conditionalPanel(
+          condition = "input.main_view == 'cluster'",
+          tabsetPanel(
+            tabPanel('Cluster', plotOutput(outputId = 'analisis_cluster'))
+          )
         )
       )
     )
   )
 )
 
-
-# SERVER
-server <- function(input, output) {
   
-  filtered_data <- reactive({
-    req(input$date_range)
+# SERVER
+server <- function(input, output, session) {
+  
+  # Observadores para los botones de selección/deselección (frecuencia)
+  observeEvent(input$select_all_freq, {
+    updateCheckboxGroupInput(session, "borough_freq", selected = borough_choices)
+  })
+  
+  observeEvent(input$deselect_all_freq, {
+    updateCheckboxGroupInput(session, "borough_freq", selected = character(0))
+  })
+  
+  # Datos filtrados para la pestaña de frecuencia
+  filtered_data_freq <- reactive({
+    req(input$date_range_freq)
+    
+    df <- data_time |>
+      filter(DATE >= input$date_range_freq[1], 
+             DATE <= input$date_range_freq[2])
+    
+    # Filtrar por barrios seleccionados (si hay alguno seleccionado)
+    if (length(input$borough_freq) > 0) {
+      df <- df |> 
+        filter(BOROUGH %in% input$borough_freq)
+    } else {
+      return(NULL)  # No mostrar datos si no hay barrios seleccionados
+    }
+    
+    return(df)
+  })
+  
+  # Datos filtrados para la pestaña de variables
+  filtered_data_var <- reactive({
+    req(input$date_range_var)
     df <- data_sampled |> 
-      filter(DATE >= input$date_range[1], DATE <= input$date_range[2])
+      filter(DATE >= input$date_range_var[1], DATE <= input$date_range_var[2])
     
     # Filtrar por barrio si no es "Todos"
     if (input$borough != "Todos") {
@@ -156,124 +343,99 @@ server <- function(input, output) {
     return(df)
   })
   
-  filtered_data_time <- reactive({
-    req(input$date_range)
-    data_time |> 
-      filter(DATE >= input$date_range[1],
-             DATE <= input$date_range[2])
-  })
-  
-  plot_data <- reactive({
-    df <- filtered_data_time()
+  # Gráfico combinado (barras + líneas)
+  output$combined_plot <- renderPlot({
+    df <- filtered_data_freq()
+    if (is.null(df)) return()  # Salir si no hay datos
     
+    # Agregar por frecuencia temporal seleccionada
     if (input$freq_type == "daily") {
-      df_plot <- df |> distinct(DATE, FREQ_DAY)
-      df_plot <- df_plot |> rename(x = DATE, y = FREQ_DAY)
+      df_agg <- df |>
+        group_by(DATE) |>
+        summarise(y = sum(FREQ_DAY, na.rm = TRUE), .groups = "drop") |>
+        rename(x = DATE)
       title <- "Frecuencia de Accidentes por Día"
       xlab <- "Fecha"
     } else if (input$freq_type == "monthly") {
-      df_plot <- df |> distinct(DATE_MONTH, FREQ_MONTH)
-      df_plot <- df_plot |> rename(x = DATE_MONTH, y = FREQ_MONTH)
+      df_agg <- df |>
+        group_by(DATE_MONTH) |>
+        summarise(y = sum(FREQ_MONTH, na.rm = TRUE), .groups = "drop") |>
+        rename(x = DATE_MONTH)
       title <- "Frecuencia de Accidentes por Mes"
       xlab <- "Mes"
     } else {
-      df_plot <- df |> distinct(DATE_YEAR, FREQ_YEAR)
-      df_plot <- df_plot |> rename(x = DATE_YEAR, y = FREQ_YEAR)
+      df_agg <- df |>
+        group_by(DATE_YEAR) |>
+        summarise(y = sum(FREQ_YEAR, na.rm = TRUE), .groups = "drop") |>
+        rename(x = DATE_YEAR)
       title <- "Frecuencia de Accidentes por Año"
       xlab <- "Año"
     }
     
-    list(data = df_plot, title = title, xlab = xlab)
-  })
-  
-  
-  output$accident_plot <- renderPlot({
-    pdata <- plot_data()
-    df <- pdata$data
+    # Crear gráfico base
+    p <- ggplot(df_agg, aes(x = x, y = y))
     
-    ggplot(df, aes(x = x, y = y)) +
-      geom_line(color = "#1F3B73", size = 1.2) +
-      geom_point(color = "#FF4C4C", size = 2) +
-      geom_text(aes(label = y), vjust = -0.5, size = 3, color = "#2E2E2E") +
-      labs(title = pdata$title, x = pdata$xlab, y = "Frecuencia") +
+    # Añadir elementos según el tipo de gráfico seleccionado
+    if (input$graph_type == "bar") {
+      p <- p + geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.8)
+    } else if (input$graph_type == "line") {
+      p <- p + geom_line(color = "#1F3B73", size = 1.2) +
+        geom_point(color = "#FF4C4C", size = 2)
+    } else { # Combinado
+      p <- p + geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.5) +
+        geom_line(color = "#1F3B73", size = 1.2) +
+        geom_point(color = "#FF4C4C", size = 2)
+    }
+    
+    # Añadir etiquetas y tema
+    p + labs(title = title, x = xlab, y = "Frecuencia") +
       theme_nyc()
   })
   
-  # Gráfico de barras (Mensual o Anual) con ajuste dinámico de bins
-  output$accident_bar <- renderPlot({
-    df <- filtered_data_time()
-    
-    if (input$freq_type == "daily") {
-      ggplot(df, aes(x = DATE, y = FREQ_DAY)) +
-        geom_bar(stat = "identity", fill = "#1F3B73") + 
-        labs(title = "Frecuencia de Accidentes por Día",
-             x = "Día", y = "Frecuencia") +
-        theme_nyc()
-      
-    } else if (input$freq_type == "monthly") {
-      df_month <- df |> 
-        group_by(DATE_MONTH) |> 
-        summarise(FREQ_MONTH = sum(FREQ_MONTH)) |> 
-        mutate(MONTH = month(DATE_MONTH, label = TRUE))
-      
-      ggplot(df_month, aes(x = MONTH, y = FREQ_MONTH)) + 
-        geom_bar(stat = "identity", fill = "#1F3B73") + 
-        labs(title = "Frecuencia de Accidentes por Mes",
-             x = "Mes", y = "Frecuencia") +
-        theme_nyc()
-      
-    } else if (input$freq_type == "yearly") {
-      df_year <- df |> 
-        group_by(DATE_YEAR) |> 
-        summarise(FREQ_YEAR = sum(FREQ_YEAR))
-      
-      ggplot(df_year, aes(x = DATE_YEAR, y = FREQ_YEAR)) + 
-        geom_bar(stat = "identity", fill = "#1F3B73") + 
-        geom_text(aes(label = FREQ_YEAR), vjust = -0.5, size = 3, color = "#2E2E2E") +
-        labs(title = "Frecuencia de Accidentes por Año",
-             x = "Año", y = "Frecuencia") +
-        theme_nyc()
-    }
-  })
-  
-  # Gráfico de distribución de accidentes por barrio
+  # Gráfico de distribución por barrio
   output$accident_borough <- renderPlot({
-    df <- filtered_data()
+    df <- filtered_data_freq()
+    if (is.null(df)) return()
     
     ggplot(df, aes(x = BOROUGH)) +
-      geom_histogram(stat = "count", fill = "#1F3B73") +
-      geom_text(aes(label = ..count..), stat = "count", vjust = -0.5, size = 3, color = "#2E2E2E") +
+      geom_bar(fill = "#1F3B73") +
+      geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.5, size = 3) +
       labs(title = "Distribución de Accidentes por Barrio",
            x = "Barrio", y = "Número de Accidentes") +
       theme_nyc()
   })
   
-  # Gráfico de evolución de accidentes por barrio a lo largo del tiempo
+  # Gráfico de evolución por barrio
   output$accident_evolution <- renderPlot({
-    df <- filtered_data()
+    df <- filtered_data_freq()
+    if (is.null(df)) return()
     
-    df_borough_time <- df |> 
-      group_by(DATE, BOROUGH) |> 
-      summarise(accidents = n()) |> 
-      mutate(DATE = year(DATE))
+    df_agg <- df |>
+      group_by(DATE = floor_date(DATE, "month"), BOROUGH) |>
+      summarise(accidents = sum(FREQ_DAY, na.rm = TRUE), .groups = "drop")
     
-    ggplot(df_borough_time, aes(x = DATE, y = accidents, fill = BOROUGH)) +
-      geom_bar(stat = "identity") +
-      labs(title = "Accidentes por Barrio a lo Largo del Tiempo",
-           x = "Fecha", y = "Número de Accidentes") +
+    ggplot(df_agg, aes(x = DATE, y = accidents, color = BOROUGH)) +
+      geom_line(size = 1.1) +
+      geom_point(size = 1.5) +
+      labs(title = "Evolución Temporal de Accidentes por Barrio",
+           x = "Fecha", y = "Número de Accidentes", color = "Barrio") +
       theme_nyc() +
-      scale_fill_viridis_d()
+      scale_color_brewer(palette = "Set1")
   })
+
   
-  # Grafico de heridos y muertos
+  # Texto resumen
   output$summary_text <- renderText({
-    df <- filtered_data_time()
+    df <- filtered_data_freq()
+    if (is.null(df)) return("Seleccione al menos un barrio para ver los datos.")
+    
     total <- sum(df$FREQ_DAY, na.rm = TRUE)
     paste("Número total de accidentes en el período seleccionado:", total)
   })
   
+  # Grafico de heridos y muertos
   output$injury_death_plot <- renderPlot({
-    df <- filtered_data()  # usa datos filtrados
+    df <- filtered_data_var()
     
     datos_resumen <- df |> 
       summarise(
@@ -311,33 +473,27 @@ server <- function(input, output) {
       )
   })
   
+  # Gráfico de frecuencia de causas
   output$frequency_of_causes <- renderPlot({
-    df <- filtered_data()
+    df <- filtered_data_var()
     
     df <- df |> 
       count(CAUSE, name = "FREQUENCY") |>  
-      arrange(desc(FREQUENCY))
+      arrange(desc(FREQUENCY)) |>
+      head(input$top_causes)  # Filtrar por las causas más frecuentes
     
-  
-    # Gráfico de frecuencia de causas
-    df |> 
-      ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
-      geom_bar(stat = "identity", fill = "steelblue") + 
-      # coord_flip() +  # Rota el gráfico para mejor visualización
-      labs(title = "Total Frecuencia de Factores Contribuyentes",
-           x = "Factor Contribuyente",
-           y = "Frecuencia") +
+    ggplot(df, aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
+      geom_bar(stat = "identity", fill = "#1F3B73") + 
+      coord_flip() +  # Rota el gráfico para mejor visualización
+      labs(title = paste("Frecuencia de las", input$top_causes, "sausas más comunes"),
+           x = "Causa", y = "Frecuencia") +
       theme_nyc() + 
-      theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
-            axis.title = element_text(size=10),
-            title = element_text(size=12),
-            axis.title.x=element_blank(),
-            legend.title = element_blank()
-      )
+      theme(axis.title = element_text(size = 10),
+            title = element_text(size = 12),
+            legend.title = element_blank())
   })
-  
   
 }
 
-# Run the application 
+# Run the application
 shinyApp(ui = ui, server = server)
