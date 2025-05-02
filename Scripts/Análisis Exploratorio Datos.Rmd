@@ -135,7 +135,7 @@ data_cleaned <- data_cleaned |>
 
 ## Eliminación de filas incompletas:
 
-### Personas afectadas
+### Personas afectadas:
 
 Vamos a comprobar si el número de personas heridas o fallecidas coincide con el número de heridos o fallecidos que se han dado en la fila. Para ello, vamos a crear una tabla con los diferentes tipos de heridos y fallecidos, y luego vamos a comprobar si el número total coincide con el número de personas heridas o fallecidas que se han dado en la fila.
 
@@ -175,7 +175,7 @@ data_cleaned <- data_cleaned[-indices_erroneos, ]
 
 ```
 
-## Eliminacion de valores incorrectos de la variable 'CAUSE'
+## Eliminacion de valores incorrectos de la variable 'CAUSE':
 
 ```{r}
 data_cleaned <- data_cleaned |> 
@@ -192,11 +192,21 @@ data_cleaned <- data_cleaned |>
   filter(CAUSE != 1, CAUSE != 80) 
 ```
 
-## Formatear variable 'DATE'
+## Formatear variable 'DATE':
 
 ```{r}
 data_cleaned <- data_cleaned |> 
   mutate(DATE = as.Date(DATE, format = "%m/%d/%Y"))
+```
+
+## Estandarizar strings de las variables:
+
+Para facilitar el trabajo con los datos y evitar valores duplicados, vamos a estandarizar las variables CAUSE, VEHICLE_1 y VEHICLE_2 convirtiéndolas completamente a mayúsculas.
+
+```{r}
+data_cleaned$VEHICLE_1 <- toupper(data_cleaned$VEHICLE_1)
+data_cleaned$VEHICLE_2 <- toupper(data_cleaned$VEHICLE_2)
+data_cleaned$CAUSE <- toupper(data_cleaned$CAUSE)
 ```
 
 ## Muestreo:
@@ -221,23 +231,20 @@ write.csv(data_sampled, "Scripts/App/data_sampled.csv", row.names = FALSE) # par
 data_sampled <- read.csv("Scripts/data_sampled.csv")
 ```
 
-Añado una correción de las variables VECHICLE_1 y VEHICLE_2 para que luego no den problemas:
+*TEMPORAL, PARA NO ANDAR ABRIENDO EL ARCHIVO GRANDE*
 
 ```{r}
-# Convertir todo a mayúsculas:
 data_sampled$VEHICLE_1 <- toupper(data_sampled$VEHICLE_1)
 data_sampled$VEHICLE_2 <- toupper(data_sampled$VEHICLE_2)
+data_sampled$CAUSE <- toupper(data_sampled$CAUSE)
 ```
-
-Si es necesario, luego se puede añadir la corrección antes del muestre de datos.
-
 # ANALISIS DESCRIPTIVO
 
 Una vez obtenido el dataset con el que trabajaremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas.
 
 Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
 
-## Variables 'DATE' y 'TIME'
+## Variables 'DATE' y 'TIME':
 
 ```{r}
 data_sampled <- data_sampled |> 
@@ -279,9 +286,9 @@ data_time |>
 
 ```
 
-```{r}
-# ahora quiero agrupar por meses, de enero a diciembre, cuantos accidentes hay
+Mostramos también un gráfico de barras de la frecuencia de accidentes por día, mes y año. 
 
+```{r}
 data_time |> 
   group_by(DATE) |> 
   summarise(FREQ_DAY = sum(FREQ_DAY)) |> 
@@ -315,7 +322,8 @@ data_time |>
 
 Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
 
-## Variable 'BOROUGH'
+## Variable 'BOROUGH':
+
 
 ```{r, warning=FALSE}
 # Mostramos el histograma de los barrios, además del box plot:
@@ -326,21 +334,13 @@ data_sampled |>
        x = "Distrito",
        y = "Número de Accidentes")
 
-df_borough_time <- data_sampled |> 
-  group_by(DATE, BOROUGH) |> 
-  summarise(accidents = n()) |> 
-  mutate(DATE = year(DATE))
-
-ggplot(df_borough_time, aes(x = DATE, y = accidents, fill = BOROUGH)) +
-  geom_bar(stat = "identity") +
-  labs(title = "Accidentes por Barrio a lo Largo del Tiempo",
-       x = "Fecha", y = "Número de Accidentes") +
-  theme_minimal() +
-  scale_fill_viridis_d()
-
 ```
 
-## Variables 'LATITUDE' y 'LONGITUDE
+*METER LA SERIE TEMPORAL Y AÑADIR ALGÚN COMENTARIO EN RELACIÓN A LO QUE VEMOS EN LAS GRÁFICAS*
+
+## Variables 'LATITUDE' y 'LONGITUDE:
+
+*METER LOS MAPAS DE MINTXO Y AÑADIR ALGÚN COMENTARIO EN RELACIÓN A LO QUE VEMOS EN LAS GRÁFICAS*
 
 Para el caso de latitude y longitude, vamos a mostrar un mapa con la localización de los accidentes en el mapa de Nueva York. Para ello, vamos a usar la librería leaflet, que nos permite mostrar mapas interactivos.
 
@@ -359,36 +359,9 @@ data_sampled |>
   )
 ```
 
-## Variables Personas Afectadas
+## Variables de Conteo de Personas Afectadas:
 
-
-```{r}
-# # 1. Crear un resumen total
-# datos_resumen <- data_sampled |> 
-#   summarise(
-#     Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
-#     Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE)
-#   )
-# 
-# # 2. Reestructurar para graficar
-# datos_long <- tidyr::pivot_longer(
-#   datos_resumen,
-#   cols = everything(),
-#   names_to = "Tipo",
-#   values_to = "Personas"
-# )
-# 
-# # 3. Crear el histograma comparativo
-# ggplot(datos_long, aes(x = Tipo, y = Personas, fill = Tipo)) +
-#   geom_bar(stat = "identity") +
-#   geom_text(aes(label = Personas), vjust = -0.5, size = 3, fontface = "bold") +
-#   labs(title = "Total de personas heridas vs muertas",
-#        x = "", y = "Número de personas") +
-#   scale_fill_manual(values = c("firebrick", "darkblue")) +
-#   theme_minimal()
-```
-
-Ahora, podemos comprobar el número de viandantes, ciclistas y motoristas que han resultado heridos o muertos en los accidentes, junto al total de heridos t muertos:
+Ahora, podemos comprobar el número de peatones, ciclistas y motoristas que han resultado heridos o muertos en los accidentes, junto al total de heridos y muertos:
 
 ```{r, fig.width=15}
 # 1. Crear un resumen total
@@ -431,8 +404,6 @@ ggplot(aes(x = Tipo, y = Total, fill = Tipo)) +
   )
 ```
 
-*CON LOS TIPOS DE VEHÍCULOS NO SÉ MUY BIEN QUE HACER*
-
 Veamos ahora la matriz de correlación:
 
 ```{r, fig.width=15, message=FALSE}
@@ -444,9 +415,9 @@ ggpairs(data_sampled, columns = c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURE
 
 Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
 
-## Variable 'CAUSE'
+## Variable 'CAUSE':
 
-Primero, vamos a ver la frecuencia de los diferentes factores contribuyentes al accidente. Para ello, vamos a crear una tabla con los diferentes factores contribuyentes y su frecuencia.
+Primero, vamos a ver la frecuencia de las distintas causas de los accidentes registrados. Para ello, vamos a crear una tabla con los diferentes factores contribuyentes y su frecuencia.
 
 ```{r}
 causes_cleaned <- data_sampled |> 
@@ -455,15 +426,15 @@ causes_cleaned <- data_sampled |>
 
 ```
 
-Ahora vamos a graficar todos los factores contribuyentes, y su frecuencia. Para ello, vamos a usar un gráfico de barras.
+Nos ayudamos de un gráfico de barras para mostrar las frecuencias.
 
-```{r}
+```{r, fig.width=13}
 causes_cleaned |> 
   ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
-  # coord_flip() +  # Rota el gráfico para mejor visualización
-  labs(title = "Total Frecuencia de Factores Contribuyentes",
-       x = "Factor Contribuyente",
+  coord_flip() +  # Rota el gráfico para mejor visualización
+  labs(title = "Frecuencia de Factores Contribuyentes de los Accidentes",
+       x = "Causas del Accidente",
        y = "Frecuencia") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
@@ -474,19 +445,64 @@ causes_cleaned |>
         )
 ```
 
+## Variable 'VEHICLE_1' y 'VEHICLE_2':
+
+Primero, vamos a ver la frecuencia de las distintos vehículos involucrados en los accidentes registrados. Para ello, vamos a crear una tabla para cada variable con su frecuencia.
+
 ```{r}
-data_sampled |> 
-  ggplot(aes(x = CAUSE, y = NUM_PERSONS_INJURED)) +
-  geom_boxplot(fill = "steelblue") +
-  labs(title = "Personas heridas según la causa del accidente",
-       x = "Causa (agrupadas las menos frecuentes)",
-       y = "Número de heridos") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# Frecuencia de la variable VEHICLE_1:
+V1_cleaned <- data_sampled |> 
+  count(VEHICLE_1, name = "FREQUENCY_V1") |>  
+  arrange(desc(FREQUENCY_V1))
+
+# Frecuencia de la variable VEHICLE_1:
+V2_cleaned <- data_sampled |> 
+  count(VEHICLE_2, name = "FREQUENCY_V2") |>  
+  arrange(desc(FREQUENCY_V2))
 
 ```
 
-(Aqui añadir histogramas, matrices de correlacion de las variables, eliminar los individuos localizados muy lejos, distribuciones de cada variable (violines)...)
+Ahora vamos a graficar los tipos de vehículos y sus frecuencias para *VEHICLE_1* y *VEHICLE_2*. Para ello, vamos a usar un gráfico de barras. Comenzamos con la primera variable:
+
+```{r, fig.width=13}
+V1_cleaned |> 
+  filter(FREQUENCY_V1 > 3) |> 
+  ggplot(aes(x = reorder(VEHICLE_1, FREQUENCY_V1), y = FREQUENCY_V1)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +  # Rota el gráfico para mejor visualización
+  labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
+       x = "Vehículos",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
+        axis.title = element_text(size=10),
+        title = element_text(size=12),
+        axis.title.x=element_blank(),
+        legend.title = element_blank()
+        )
+```
+
+De manera similar, mostramos la segunda variable:
+
+```{r, fig.width=13}
+V2_cleaned |> 
+  filter(FREQUENCY_V2 > 3, VEHICLE_2 != '') |> 
+  ggplot(aes(x = reorder(VEHICLE_2, FREQUENCY_V2), y = FREQUENCY_V2)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +  # Rota el gráfico para mejor visualización
+  labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
+       x = "Vehículos",
+       y = "Frecuencia") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
+        axis.title = element_text(size=10),
+        title = element_text(size=12),
+        axis.title.x=element_blank(),
+        legend.title = element_blank()
+        )
+```
+
+Dado que en ambas variables había vehículos con una frecuencia de aparición menor o igual a 3, consideramos que no era relevante incluirlos en el gráfico, ya que dificultaban su interpretación.
 
 # METODOLOGÍA MULTIVARIANTE
 
