@@ -5,7 +5,7 @@ library(leaflet.extras)
 library(dplyr)
 library(lubridate)
 
-data_sampled <- read.csv("data_sampled.csv")
+data_sampled <- read.csv("Scripts/data_sampled.csv")
 
 #Cambiar formato de la columna DATE
 data_sampled <- data_sampled %>%
@@ -146,6 +146,7 @@ server <- function(input, output, session) {
         position = "bottomright"
       )
   })
+  
 }
 
 shinyApp(ui, server)
