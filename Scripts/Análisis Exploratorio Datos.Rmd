@@ -361,35 +361,34 @@ data_sampled |>
 
 ## Variables Personas Afectadas
 
-Ahora, vamos a mostrar un histograma comparando la cantidad de personas heridas frente a la cantidad de personas muertas:
 
 ```{r}
-# 1. Crear un resumen total
-datos_resumen <- data_sampled |> 
-  summarise(
-    Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
-    Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE)
-  )
-
-# 2. Reestructurar para graficar
-datos_long <- tidyr::pivot_longer(
-  datos_resumen,
-  cols = everything(),
-  names_to = "Tipo",
-  values_to = "Personas"
-)
-
-# 3. Crear el histograma comparativo
-ggplot(datos_long, aes(x = Tipo, y = Personas, fill = Tipo)) +
-  geom_bar(stat = "identity") +
-  geom_text(aes(label = Personas), vjust = -0.5, size = 3, fontface = "bold") +
-  labs(title = "Total de personas heridas vs muertas",
-       x = "", y = "Número de personas") +
-  scale_fill_manual(values = c("firebrick", "darkblue")) +
-  theme_minimal()
+# # 1. Crear un resumen total
+# datos_resumen <- data_sampled |> 
+#   summarise(
+#     Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+#     Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE)
+#   )
+# 
+# # 2. Reestructurar para graficar
+# datos_long <- tidyr::pivot_longer(
+#   datos_resumen,
+#   cols = everything(),
+#   names_to = "Tipo",
+#   values_to = "Personas"
+# )
+# 
+# # 3. Crear el histograma comparativo
+# ggplot(datos_long, aes(x = Tipo, y = Personas, fill = Tipo)) +
+#   geom_bar(stat = "identity") +
+#   geom_text(aes(label = Personas), vjust = -0.5, size = 3, fontface = "bold") +
+#   labs(title = "Total de personas heridas vs muertas",
+#        x = "", y = "Número de personas") +
+#   scale_fill_manual(values = c("firebrick", "darkblue")) +
+#   theme_minimal()
 ```
 
-Ahora, podemos comprobar el número de viandantes, ciclistas y motoristas que han resultado heridos o muertos en los accidentes:
+Ahora, podemos comprobar el número de viandantes, ciclistas y motoristas que han resultado heridos o muertos en los accidentes, junto al total de heridos t muertos:
 
 ```{r, fig.width=15}
 # 1. Crear un resumen total
@@ -413,8 +412,7 @@ datos_long <- datos_resumen |>
                values_to = "Total")
 
 # 3. Gráfico separado por estado (herido/muerto)
-datos_long |>  
-  filter(Estado != 'Total') |> 
+datos_long |> 
 ggplot(aes(x = Tipo, y = Total, fill = Tipo)) +
   geom_col(show.legend = TRUE) +  # Activamos la leyenda
   geom_text(aes(label = Total), vjust = -0.5, size = 4) +
@@ -695,8 +693,6 @@ rect.hclust(hc, k = 3, border = "blue")  # Prueba con k = 2, 3, 4, etc.
 <<<<<<< HEAD
 
 Añadir un gráfico de barras comparando las variables entre los clústeres.
-=======
->>>>>>> origin
 
 El análisis de clúster jerárquico aplicado a los distritos de Nueva York ha dado como resultado una agrupación en tres clústeres bien diferenciados: por un lado, se agrupan el Bronx y Manhattan; por otro, Brooklyn y Queens; y finalmente, Staten Island queda separado en un grupo propio. Esta clasificación cobra sentido cuando se analiza en función de la densidad de población de cada distrito.
 
