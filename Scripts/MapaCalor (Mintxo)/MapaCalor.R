@@ -55,9 +55,16 @@ server <- function(input, output, session) {
     df <- data_sampled %>%
       mutate(DATE = as.Date(DATE))
     
+    # Filtro por fechas
     df <- df %>%
       filter(DATE >= input$Fecha[1], DATE <= input$Fecha[2])
     
+    # Filtro por causa del accidente
+    if (input$causa != "Todas") {
+      df <- df %>% filter(CAUSE == input$causa)
+    }
+    
+    # Filtro por tipo de usuario
     if (length(input$tipo_usuario) == 0) {
       df <- df[0, ]
     } else {
