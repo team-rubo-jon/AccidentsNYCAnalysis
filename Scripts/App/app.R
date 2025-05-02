@@ -67,7 +67,7 @@ ui <- navbarPage(
   theme = ny_theme,
   
   tabPanel(
-    titlePanel("Frecuencia de Accidentes 🚦"),
+    tags$div("Frecuencia de Accidentes 🚦", style = "font-size: 18px; font-weight: bold;"),
     sidebarLayout(
       sidebarPanel(
         h3("Configuración de visualización"),
@@ -105,6 +105,36 @@ ui <- navbarPage(
         )
       )
     )
+  ),
+  
+  tabPanel(
+    tags$div("Gráficos de Variables 📊", style = "font-size: 18px; font-weight: bold;"),
+    sidebarLayout(
+      sidebarPanel(
+        h3("Configuración de visualización"),
+        
+        # Widget para seleccionar el barrio
+        selectInput("borough", "Seleccionar Barrio:",
+                    choices = c("Todos", unique(data_sampled$BOROUGH)),
+                    selected = "Todos"),
+        
+        # Rango de fechas
+        dateRangeInput(
+          'date_range', 'Filtrar por rango de fechas',
+          start = min_date, end = max_date,
+          min = min_date, max = max_date,
+          format = 'yyyy-mm-dd', startview = 'year',
+          language = 'es', separator = " a "
+        )
+      ),
+      
+      mainPanel(
+        tabsetPanel(
+          tabPanel('Frequency of injured and deaths', plotOutput(outputId = 'injury_death_plot')),
+          tabPanel('Frequency of causes', plotOutput(outputId = 'frequency_of_causes'))
+        )
+      )
+    )
   )
 )
 
@@ -133,37 +163,40 @@ server <- function(input, output) {
              DATE <= input$date_range[2])
   })
   
-  output$accident_plot <- renderPlot({
+  plot_data <- reactive({
     df <- filtered_data_time()
     
     if (input$freq_type == "daily") {
-      ggplot(df, aes(x = DATE, y = FREQ_DAY)) +
-        geom_line(color = "#1F3B73", size = 1.2) +
-        geom_point(color = "#FF4C4C", size = 2) +
-        labs(title = "Frecuencia de Accidentes por Día",
-             x = "Fecha", y = "Frecuencia") +
-        theme_nyc()
-      
+      df_plot <- df |> distinct(DATE, FREQ_DAY)
+      df_plot <- df_plot |> rename(x = DATE, y = FREQ_DAY)
+      title <- "Frecuencia de Accidentes por Día"
+      xlab <- "Fecha"
     } else if (input$freq_type == "monthly") {
-      df_month <- df |> distinct(DATE_MONTH, FREQ_MONTH)
-      ggplot(df_month, aes(x = DATE_MONTH, y = FREQ_MONTH)) +
-        geom_line(color = "#1F3B73", size = 1.2) +
-        geom_point(color = "#FF4C4C", size = 2) +
-        geom_text(aes(label = FREQ_MONTH), vjust = -0.5, size = 3, color = "#2E2E2E") +
-        labs(title = "Frecuencia de Accidentes por Mes",
-             x = "Mes", y = "Frecuencia") +
-        theme_nyc()
-      
-    } else if (input$freq_type == "yearly") {
-      df_year <- df |> distinct(DATE_YEAR, FREQ_YEAR)
-      ggplot(df_year, aes(x = DATE_YEAR, y = FREQ_YEAR)) +
-        geom_line(color = "#1F3B73", size = 1.2) +
-        geom_point(color = "#FF4C4C", size = 2) + 
-        geom_text(aes(label = FREQ_YEAR), vjust = -0.5, size = 3, color = "#2E2E2E") +
-        labs(title = "Frecuencia de Accidentes por Año",
-             x = "Año", y = "Frecuencia") +
-        theme_nyc()
+      df_plot <- df |> distinct(DATE_MONTH, FREQ_MONTH)
+      df_plot <- df_plot |> rename(x = DATE_MONTH, y = FREQ_MONTH)
+      title <- "Frecuencia de Accidentes por Mes"
+      xlab <- "Mes"
+    } else {
+      df_plot <- df |> distinct(DATE_YEAR, FREQ_YEAR)
+      df_plot <- df_plot |> rename(x = DATE_YEAR, y = FREQ_YEAR)
+      title <- "Frecuencia de Accidentes por Año"
+      xlab <- "Año"
     }
+    
+    list(data = df_plot, title = title, xlab = xlab)
+  })
+  
+  
+  output$accident_plot <- renderPlot({
+    pdata <- plot_data()
+    df <- pdata$data
+    
+    ggplot(df, aes(x = x, y = y)) +
+      geom_line(color = "#1F3B73", size = 1.2) +
+      geom_point(color = "#FF4C4C", size = 2) +
+      geom_text(aes(label = y), vjust = -0.5, size = 3, color = "#2E2E2E") +
+      labs(title = pdata$title, x = pdata$xlab, y = "Frecuencia") +
+      theme_nyc()
   })
   
   # Gráfico de barras (Mensual o Anual) con ajuste dinámico de bins
@@ -185,7 +218,6 @@ server <- function(input, output) {
       
       ggplot(df_month, aes(x = MONTH, y = FREQ_MONTH)) + 
         geom_bar(stat = "identity", fill = "#1F3B73") + 
-        geom_text(aes(label = FREQ_MONTH), vjust = -0.5, size = 3, color = "#2E2E2E") +
         labs(title = "Frecuencia de Accidentes por Mes",
              x = "Mes", y = "Frecuencia") +
         theme_nyc()
@@ -233,11 +265,78 @@ server <- function(input, output) {
       scale_fill_viridis_d()
   })
   
+  # Grafico de heridos y muertos
   output$summary_text <- renderText({
     df <- filtered_data_time()
     total <- sum(df$FREQ_DAY, na.rm = TRUE)
     paste("Número total de accidentes en el período seleccionado:", total)
   })
+  
+  output$injury_death_plot <- renderPlot({
+    df <- filtered_data()  # usa datos filtrados
+    
+    datos_resumen <- df |> 
+      summarise(
+        Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+        Heridos_Pedestrians = sum(NUM_PEDESTRIANS_INJURED, na.rm = TRUE),
+        Heridos_Cyclists = sum(NUM_CYCLIST_INJURED, na.rm = TRUE),
+        Heridos_Motorists = sum(NUM_MOTORIST_INJURED, na.rm = TRUE),
+        Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE),
+        Muertos_Pedestrians = sum(NUM_PEDESTRIANS_KILLED, na.rm = TRUE),
+        Muertos_Cyclists = sum(NUM_CYCLIST_KILLED, na.rm = TRUE),
+        Muertos_Motorists = sum(NUM_MOTORIST_KILLED, na.rm = TRUE)
+      )
+    
+    datos_long <- datos_resumen |> 
+      pivot_longer(cols = everything(),
+                   names_to = c("Estado", "Tipo"),
+                   names_sep = "_",
+                   values_to = "Total")
+    
+    ggplot(datos_long, aes(x = Tipo, y = Total, fill = Tipo)) +
+      geom_col(show.legend = TRUE) +
+      geom_text(aes(label = Total), vjust = -0.5, size = 4, color = "#2E2E2E") +
+      facet_wrap(~Estado, scales = "free_y") +
+      labs(
+        title = "Total de personas heridas y muertas por tipo",
+        x = NULL,
+        y = "Total",
+        fill = "Tipo de persona"
+      ) +
+      theme_nyc() +
+      theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom"
+      )
+  })
+  
+  output$frequency_of_causes <- renderPlot({
+    df <- filtered_data()
+    
+    df <- df |> 
+      count(CAUSE, name = "FREQUENCY") |>  
+      arrange(desc(FREQUENCY))
+    
+  
+    # Gráfico de frecuencia de causas
+    df |> 
+      ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
+      geom_bar(stat = "identity", fill = "steelblue") + 
+      # coord_flip() +  # Rota el gráfico para mejor visualización
+      labs(title = "Total Frecuencia de Factores Contribuyentes",
+           x = "Factor Contribuyente",
+           y = "Frecuencia") +
+      theme_nyc() + 
+      theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
+            axis.title = element_text(size=10),
+            title = element_text(size=12),
+            axis.title.x=element_blank(),
+            legend.title = element_blank()
+      )
+  })
+  
+  
 }
 
 # Run the application 
