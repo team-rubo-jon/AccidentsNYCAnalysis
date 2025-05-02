@@ -1,16 +1,19 @@
 library(shiny)
 library(shinythemes)
 library(leaflet)
-library(leaflet.extras)
 library(dplyr)
 library(lubridate)
 
-data_sampled <- read.csv("Scripts/data_sampled.csv")
+# Leer los datos
+data_sampled <- read.csv("data_sampled.csv")
 
+# Convertir la columna de fecha a formato adecuado
 data_sampled <- data_sampled %>%
-  mutate(DATE = mdy(DATE)) %>%
-  filter(!is.na(LONGITUDE), !is.na(LATITUDE),
-         LONGITUDE != 0, LATITUDE != 0)
+  mutate(DATE = mdy(DATE))
+
+# Definir el número de subconjuntos y el tamaño del subconjunto
+subconjunto_size <- 500
+total_subconjuntos <- ceiling(nrow(data_sampled) / subconjunto_size)
 
 ui <- navbarPage(
   title = p(strong('Visualización de Accidentes de Tráfico')),
@@ -19,8 +22,7 @@ ui <- navbarPage(
   tabPanel("EVOLUCIÓN",
            sidebarLayout(
              sidebarPanel(
-               actionButton("start", "Iniciar Animación", class = "btn-primary"),
-               actionButton("reset", "Reiniciar", class = "btn-secondary")
+               actionButton("start", "SIGUIENTE", class = "btn-primary")
              ),
              mainPanel(
                leafletOutput("mapa_evolucion", height = 500)
@@ -31,55 +33,40 @@ ui <- navbarPage(
 
 server <- function(input, output, session) {
   
-  evol_index <- reactiveVal(1)
-  animando <- reactiveVal(FALSE)
+  # Índice reactivo para saber qué subconjunto mostrar
+  current_index <- reactiveVal(1)
   
-  data_reciente <- data_sampled %>%
-    arrange(desc(DATE)) %>%
-    slice(1:500)
+  # Función para obtener el subconjunto actual
+  get_subset <- function(index) {
+    start_row <- (index - 1) * subconjunto_size + 1
+    end_row <- min(index * subconjunto_size, nrow(data_sampled))
+    data_sampled[start_row:end_row, ]
+  }
   
   observeEvent(input$start, {
-    animando(TRUE)
-  })
-  
-  observeEvent(input$reset, {
-    animando(FALSE)
-    evol_index(1)
-    leafletProxy("mapa_evolucion") %>% clearGroup("heatmap")
-  })
-  
-  observe({
-    invalidateLater(500, session)
-    if (animando()) {
-      if (evol_index() < nrow(data_reciente)) {
-        evol_index(evol_index() + 10)
-      } else {
-        animando(FALSE)
-      }
+    # Obtener el subconjunto actual de 500 accidentes
+    subset_data <- get_subset(current_index())
+    
+    # Mostrar el subconjunto en el mapa de calor
+    output$mapa_evolucion <- renderLeaflet({
+      leaflet(subset_data) %>%
+        addTiles() %>%
+        addHeatmap(
+          lng = ~LONGITUDE,
+          lat = ~LATITUDE,
+          intensity = ~NUM_PERSONS_KILLED + NUM_PERSONS_INJURED,
+          radius = 15,
+          blur = 20,
+          max = 0.05
+        )
+    })
+    
+    # Incrementar el índice para el siguiente subconjunto
+    if (current_index() < total_subconjuntos) {
+      current_index(current_index() + 1)
+    } else {
+      current_index(1)  # Reiniciar el índice cuando se alcanza el final
     }
-  })
-  
-  output$mapa_evolucion <- renderLeaflet({
-    leaflet() %>%
-      addTiles()
-  })
-  
-  observe({
-    req(animando())
-    
-    idx <- evol_index()
-    df_evol <- data_reciente[1:idx, ]
-    
-    leafletProxy("mapa_evolucion", data = df_evol) %>%
-      clearGroup("heatmap") %>%
-      addHeatmap(
-        lng = ~LONGITUDE,
-        lat = ~LATITUDE,
-        radius = 12,
-        blur = 15,
-        max = 0.05,
-        group = "heatmap"
-      )
   })
 }
 
