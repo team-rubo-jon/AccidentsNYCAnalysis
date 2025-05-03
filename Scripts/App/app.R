@@ -8,6 +8,8 @@ library(dplyr)
 library(dendextend)
 library(DT)
 library(ggdendro)
+library(cluster)
+library(factoextra)
 
 
 data_sampled <- read.csv("data_sampled.csv")
@@ -64,34 +66,43 @@ theme_nyc <- function() {
 
 
 # UI
-ui <- navbarPage(
-  title = div(
-    icon("car-crash"), 
-    tags$h1("NYC Accident Dashboard", class = "text-secondary", style = "margin: 0; font-family: 'Bebas Neue';")
-  ),
+ui <- fluidPage(
+  
+  # Aplicar el tema personalizado 'ny_theme'
   theme = ny_theme,
-  tabPanel(
-    tags$div("Clúster Jerárquico 🧩", style = "font-size: 18px; font-weight: bold;"),
-    sidebarLayout(
-      sidebarPanel(
-        sliderInput("k", "Número de clústeres:", min = 2, max = 4, value = 3),
-        checkboxInput("show_rect", "Mostrar rectángulos", TRUE)
+  
+  titlePanel("Análisis de Agrupamiento"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      checkboxGroupInput("plot_choices", 
+                         "Selecciona las opciones para ver:",
+                         choices = c("Dendrograma", "Silueta", "Tabla"),
+                         selected = c("Dendrograma", "Silueta", "Tabla")),
+      sliderInput("k", 
+                  "Número de grupos (k):", 
+                  min = 2, max = 4, value = 3),
+      checkboxInput("show_rect", "Mostrar rectángulos en el dendrograma", value = TRUE)
+    ),
+    
+    mainPanel(
+      conditionalPanel(
+        condition = "input.plot_choices.indexOf('Dendrograma') > -1",
+        plotOutput("dendrogramPlot", height = "500px")
       ),
-      mainPanel(
-        plotOutput("dendrogramPlot", height = "600px"),
-        br(),
-        h4("Interpretación"),
-        p("El análisis de clúster jerárquico permite identificar patrones comunes entre los distritos de Nueva York en función de sus características relacionadas con los accidentes de tráfico. Independientemente del número de clústeres elegido, las agrupaciones tienden a formarse en torno a factores como la densidad de población, el nivel de urbanización y la distribución geográfica. Así, distritos con contextos similares tienden a agruparse juntos, ya sea por presentar una elevada concentración de tráfico, zonas predominantemente residenciales o una menor intensidad de incidentes. Estas agrupaciones ayudan a entender cómo varía la siniestralidad vial en función del entorno urbano. Este dendrograma agrupa los barrios según la suma total de personas heridas y fallecidas en los accidentes de tráfico. 
-          Puedes modificar el número de clústeres (k) y el método de enlace para explorar diferentes agrupaciones."),
-        h4("Totales por distrito y clúster asignado"),
+      conditionalPanel(
+        condition = "input.plot_choices.indexOf('Silueta') > -1",
+        plotOutput("silhouettePlot")
+      ),
+      conditionalPanel(
+        condition = "input.plot_choices.indexOf('Tabla') > -1",
         DTOutput("boroughTable")
       )
     )
   )
 )
 
-
-# SERVER
+# Server
 server <- function(input, output) {
   
   # Reactivo para almacenar los datos del dendrograma
@@ -122,19 +133,27 @@ server <- function(input, output) {
     hc <- data_list$hc
     data_borough_sum <- data_list$data
     
+    # Crear y configurar dendrograma
     dend <- as.dendrogram(hc)
     dend <- color_branches(dend, k = input$k)
-    dend <- set(dend, "labels_cex", 0.9)     # tamaño del texto
-    dend <- set(dend, "hang", -1)            # evita que las etiquetas queden cortadas
+    dend <- set(dend, "hang", -1)
+    dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])  # Etiquetas ordenadas
     
-    # Obtener etiquetas ordenadas según el dendrograma
-    ordered_labels <- data_borough_sum$BOROUGH[hc$order]
-    labels(dend) <- ordered_labels  # Asigna etiquetas correctamente
+    # Ajustar márgenes para que las etiquetas no se corten
+    op <- par(no.readonly = TRUE)  
+    par(mar = c(8, 4, 4, 2))       
     
-    par(las=2)
-    plot(dend, main = "Dendrograma de distritos", horiz = FALSE) # vertical con etiquetas horizontales
-    if (input$show_rect) rect.hclust(hc, k = input$k, border = "blue")
+    # Graficar dendrograma
+    plot(dend, main = "Dendrograma de distritos", horiz = FALSE, axes = FALSE)
+    
+    # Dibujar rectángulos de clúster si se selecciona
+    if (input$show_rect) rect.dendrogram(dend, k = input$k, border = "blue")
+    
+    par(op)  # Restaurar márgenes originales
   })
+  
+  
+  
   
   output$boroughTable <- renderDT({
     k <- input$k
@@ -150,7 +169,6 @@ server <- function(input, output) {
       mutate(Grupo = as.factor(clusters)) |>  # Convertir a factor para el coloreado
       arrange(Grupo)
     
-    
     datatable(
       result_table,
       options = list(
@@ -158,7 +176,27 @@ server <- function(input, output) {
         pageLength = nrow(result_table)  # Muestra todas las filas
       ),
       rownames = FALSE
-      )
+    )
+  })
+  
+  output$silhouettePlot <- renderPlot({
+    data_list <- dend_data()
+    hc <- data_list$hc
+    data_borough_sum <- data_list$data
+    
+    # Obtener el número de clústeres (k) desde la entrada
+    k <- input$k
+    
+    # Asignar los clústeres usando cutree
+    clusters <- cutree(hc, k = k)
+    
+    # Calcular la silueta usando la distancia
+    dist_matrix <- dist(data_borough_sum[, c("total_injured", "total_killed")])
+    
+    # Visualizar el índice de silueta con fviz_silhouette
+    fviz_silhouette(silhouette(clusters, dist_matrix)) + 
+      ggtitle(paste("Índice de Silueta para k =", k)) +
+      theme_nyc()  # Usar el tema 'ny_theme' también en los gráficos
   })
 }
 
