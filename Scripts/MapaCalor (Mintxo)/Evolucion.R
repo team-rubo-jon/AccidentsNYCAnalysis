@@ -24,7 +24,7 @@ data_sampled <- read.csv("data_sampled.csv")
 
 data_sampled <- data_sampled %>%
   mutate(DATE = mdy(DATE)) %>%
-  arrange(desc(DATE))
+  arrange(DATE)
 
 subconjunto_size <- 500
 total_subconjuntos <- ceiling(nrow(data_sampled) / subconjunto_size)
@@ -36,7 +36,8 @@ ui <- navbarPage(
   tabPanel("EVOLUCIÓN",
            sidebarLayout(
              sidebarPanel(
-               actionButton("start", "SIGUIENTE", class = "btn-primary"),
+               actionButton("start", "Iniciar", class = "btn-success"),
+               actionButton("pause", "Pausar", class = "btn-warning"),
                br(), br()
              ),
              mainPanel(
@@ -57,7 +58,8 @@ server <- function(input, output, session) {
     data_sampled[start_row:end_row, ]
   }
   
-  observeEvent(input$start, {
+  # Renderizar el primer subconjunto al iniciar la app
+  observe({
     subset_data <- get_subset(current_index())
     
     output$mapa_evolucion <- renderLeaflet({
@@ -81,17 +83,21 @@ server <- function(input, output, session) {
       
       div(
         style = "margin-top: 15px; padding: 10px; background-color: #222;
-             color: #fff; font-size: 20px; text-align: center;
-             border-radius: 8px; border: 1px solid #444;",
+                 color: #fff; font-size: 20px; text-align: center;
+                 border-radius: 8px; border: 1px solid #444;",
         rango
       )
     })
-
-    if (current_index() < total_subconjuntos) {
-      current_index(current_index() + 1)
+  })
+  
+  # Al presionar el botón, avanzar al siguiente subconjunto
+  observeEvent(input$start, {
+    new_index <- if (current_index() < total_subconjuntos) {
+      current_index() + 1
     } else {
-      current_index(1)
+      1
     }
+    current_index(new_index)
   })
 }
 
