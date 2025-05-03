@@ -706,7 +706,6 @@ hc <- hclust(dist_matrix, method = "complete")
 plot(hc, labels = data_borough_sum$BOROUGH, main = "Dendrograma de barrios (suma total)")
 rect.hclust(hc, k = 3, border = "blue")  # Prueba con k = 2, 3, 4, etc.
 ```
-<<<<<<< HEAD
 
 Añadir un gráfico de barras comparando las variables entre los clústeres.
 
