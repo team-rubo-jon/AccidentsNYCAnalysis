@@ -1,17 +1,31 @@
 library(shiny)
 library(shinythemes)
 library(leaflet)
+library(leaflet.extras)
 library(dplyr)
 library(lubridate)
 
-# Leer los datos
+
+
+
+
+
+# AUN LO TENGO QUE TERMINAR
+
+
+
+
+
+
+
+
+
 data_sampled <- read.csv("data_sampled.csv")
 
-# Convertir la columna de fecha a formato adecuado
 data_sampled <- data_sampled %>%
-  mutate(DATE = mdy(DATE))
+  mutate(DATE = mdy(DATE)) %>%
+  arrange(desc(DATE))
 
-# Definir el número de subconjuntos y el tamaño del subconjunto
 subconjunto_size <- 500
 total_subconjuntos <- ceiling(nrow(data_sampled) / subconjunto_size)
 
@@ -22,10 +36,12 @@ ui <- navbarPage(
   tabPanel("EVOLUCIÓN",
            sidebarLayout(
              sidebarPanel(
-               actionButton("start", "SIGUIENTE", class = "btn-primary")
+               actionButton("start", "SIGUIENTE", class = "btn-primary"),
+               br(), br()
              ),
              mainPanel(
-               leafletOutput("mapa_evolucion", height = 500)
+               leafletOutput("mapa_evolucion", height = 500),
+               uiOutput("rango_fechas")
              )
            )
   )
@@ -33,10 +49,8 @@ ui <- navbarPage(
 
 server <- function(input, output, session) {
   
-  # Índice reactivo para saber qué subconjunto mostrar
   current_index <- reactiveVal(1)
   
-  # Función para obtener el subconjunto actual
   get_subset <- function(index) {
     start_row <- (index - 1) * subconjunto_size + 1
     end_row <- min(index * subconjunto_size, nrow(data_sampled))
@@ -44,10 +58,8 @@ server <- function(input, output, session) {
   }
   
   observeEvent(input$start, {
-    # Obtener el subconjunto actual de 500 accidentes
     subset_data <- get_subset(current_index())
     
-    # Mostrar el subconjunto en el mapa de calor
     output$mapa_evolucion <- renderLeaflet({
       leaflet(subset_data) %>%
         addTiles() %>%
@@ -61,11 +73,24 @@ server <- function(input, output, session) {
         )
     })
     
-    # Incrementar el índice para el siguiente subconjunto
+    output$rango_fechas <- renderUI({
+      fecha_min <- min(subset_data$DATE, na.rm = TRUE)
+      fecha_max <- max(subset_data$DATE, na.rm = TRUE)
+      rango <- paste0(format(fecha_min, "%Y/%m/%d"), 
+                      " - ", format(fecha_max, "%Y/%m/%d"))
+      
+      div(
+        style = "margin-top: 15px; padding: 10px; background-color: #222;
+             color: #fff; font-size: 20px; text-align: center;
+             border-radius: 8px; border: 1px solid #444;",
+        rango
+      )
+    })
+
     if (current_index() < total_subconjuntos) {
       current_index(current_index() + 1)
     } else {
-      current_index(1)  # Reiniciar el índice cuando se alcanza el final
+      current_index(1)
     }
   })
 }
