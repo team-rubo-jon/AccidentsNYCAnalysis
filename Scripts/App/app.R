@@ -4,6 +4,9 @@ library(bslib)
 library(tidyverse)
 library(lubridate)
 library(zoo)
+library(leaflet)
+library(leaflet.extras)
+library(dplyr)
 
 data_sampled <- read.csv("data_sampled.csv")
 
@@ -24,6 +27,10 @@ max_date <- max(data_time$DATE)
 
 # Obtener lista única de barrios
 borough_choices <- unique(na.omit(data_sampled$BOROUGH))
+
+# para el mapa evolutivo
+subconjunto_size <- 500
+total_subconjuntos <- ceiling(nrow(data_sampled) / subconjunto_size)
 
 # Crear tema personalizado
 ny_theme <- bs_theme(
@@ -89,32 +96,29 @@ ui <- navbarPage(
         conditionalPanel(
           condition = "input.main_view == 'freq'",
           h4("Configuración de Frecuencia Temporal"),
-          wellPanel(
-            h4("Configuración del Gráfico Temporal"),
-            selectInput(
-              "freq_type", 
-              "Frecuencia temporal:",
-              choices = c("Diario" = "daily", "Mensual" = "monthly", "Anual" = "yearly"),
-              selected = "daily"
-            ),
-            radioButtons(
-              "graph_type",
-              "Tipo de gráfico:",
-              choices = c("Barras" = "bar", "Líneas" = "line", "Combinado" = "combo"),
-              selected = "combo"
-            ),
-            dateRangeInput(
-              'date_range_freq', 
-              'Rango de fechas:',
-              start = min_date, 
-              end = max_date,
-              min = min_date, 
-              max = max_date,
-              format = 'yyyy-mm-dd', 
-              startview = 'year',
-              language = 'es', 
-              separator = " a "
-            )
+          selectInput(
+            "freq_type", 
+            "Frecuencia temporal:",
+            choices = c("Diario" = "daily", "Mensual" = "monthly", "Anual" = "yearly"),
+            selected = "daily"
+          ),
+          radioButtons(
+            "graph_type",
+            "Tipo de gráfico:",
+            choices = c("Barras" = "bar", "Líneas" = "line", "Combinado" = "combo"),
+            selected = "combo"
+          ),
+          dateRangeInput(
+            'date_range_freq', 
+            'Rango de fechas:',
+            start = min_date, 
+            end = max_date,
+            min = min_date, 
+            max = max_date,
+            format = 'yyyy-mm-dd', 
+            startview = 'year',
+            language = 'es', 
+            separator = " a "
           )
         ),
         
@@ -240,11 +244,72 @@ ui <- navbarPage(
     tags$div("Mapas 🗺️", style = "font-size: 18px; font-weight: bold;"),
     sidebarLayout(
       sidebarPanel(
-
+        # Selector desplegable en lugar de radioButtons
+        selectInput(
+          "main_view",
+          "Seleccionar vista:",
+          choices = c(
+            "Mapa de calor 🌡️" = "hot_map",
+            "️Mapa evolutivo 📈"= "evolution_map"
+          ),
+          selected = "hot_map"
+        ),
+        
+        # Panel condicional para el mapa de calor
+        conditionalPanel(
+          condition = "input.main_view == 'hot_map'",
+          h4("Configuración del mapa"),
+          
+          checkboxGroupInput("tipo_usuario", "Víctimas implicadas:",
+                             choices = c("Sin heridos", "Peatones", "Ciclistas", "Motoristas"),
+                             selected = c("Sin heridos","Peatones", "Ciclistas", "Motoristas")),
+          
+          selectInput("causa", "Causa del accidente:",
+                      choices = c("Todas", unique(data_sampled$CAUSE)),
+                      selected = "Todas"),
+          br(),
+          uiOutput("num_accidentes")
+        ),
+        
+        # Panel condicional para el mapa evolutivo
+        conditionalPanel(
+          condition = "input.main_view == 'evolution_map'",
+          h4("Botones de control"),
+          
+          actionButton("start", "Iniciar", class = "btn-success"),
+          actionButton("pause", "Pausar", class = "btn-warning"),
+          br(), br()
+        )
       ),
+    
       mainPanel(
-
-      )
+        conditionalPanel(
+          condition = "input.main_view == 'hot_map'",
+            leafletOutput("mapa_accidentes", height=500),
+            style = "margin-bottom: 10px;"
+        ),
+        
+        conditionalPanel(
+          condition = "input.main_view == 'evolution_map'",
+            leafletOutput("mapa_evolutivo", height = 500),
+            uiOutput("rango_fechas")
+        )
+      ),
+    ),
+    
+    tags$div(
+      style = "position: fixed; bottom: 0; left: 0; right: 0; background-color: #F4F4F4; padding: 10px; z-index: 9999; 
+           margin-bottom: 10px; margin-left: 15px; margin-right: 15px; border-radius: 5px;",
+      tags$style(HTML("
+        #Fecha-label { color: #FFD100; font-weight: bold; }
+        .irs-grid-text { color: #FFD100 !important; }
+      ")),
+      sliderInput("Fecha", "RANGO DE FECHAS:",
+                  min = as.Date(min(data_sampled$DATE)),
+                  max = as.Date(max(data_sampled$DATE)),
+                  value = c(as.Date(min(data_sampled$DATE)), as.Date(max(data_sampled$DATE))),
+                  timeFormat = "%Y-%m-%d",
+                  width = "100%")
     )
   ),
   
@@ -342,6 +407,66 @@ server <- function(input, output, session) {
     
     return(df)
   })
+  
+  # datos filtrados para el mapa
+  filtered_data_map <- reactive({
+    df <- data_sampled |> 
+      mutate(DATE = as.Date(DATE))
+    
+    # Filtro por fechas
+    df <- df |> 
+      filter(DATE >= input$Fecha[1], DATE <= input$Fecha[2])
+    
+    # Filtro por causa del accidente
+    if (input$causa != "Todas") {
+      df <- df |> filter(CAUSE == input$causa)
+    }
+    
+    # Filtro por tipo de usuario
+    if (length(input$tipo_usuario) == 0) {
+      df <- df[0, ]
+    } else {
+      condiciones <- list()
+      
+      if ("Sin heridos" %in% input$tipo_usuario) {
+        condiciones[[length(condiciones) + 1]] <- (
+          df$NUM_PERSONS_INJURED + df$NUM_PERSONS_KILLED == 0
+        )
+      }
+      
+      if ("Peatones" %in% input$tipo_usuario) {
+        condiciones[[length(condiciones) + 1]] <- (
+          df$NUM_PEDESTRIANS_INJURED + df$NUM_PEDESTRIANS_KILLED > 0
+        )
+      }
+      
+      if ("Ciclistas" %in% input$tipo_usuario) {
+        condiciones[[length(condiciones) + 1]] <- (
+          df$NUM_CYCLIST_INJURED + df$NUM_CYCLIST_KILLED > 0
+        )
+      }
+      
+      if ("Motoristas" %in% input$tipo_usuario) {
+        condiciones[[length(condiciones) + 1]] <- (
+          df$NUM_MOTORIST_INJURED + df$NUM_MOTORIST_KILLED > 0
+        )
+      }
+      
+      df <- df[Reduce("|", condiciones), ]
+    }
+    
+    df
+  })
+  
+  # Para el mapa evolutivo
+  current_index <- reactiveVal(1)
+  
+  get_subset <- function(index) {
+    start_row <- (index - 1) * subconjunto_size + 1
+    end_row <- min(index * subconjunto_size, nrow(data_sampled))
+    data_sampled[start_row:end_row, ]
+  }
+  
   
   # Gráfico combinado (barras + líneas)
   output$combined_plot <- renderPlot({
@@ -491,6 +616,107 @@ server <- function(input, output, session) {
       theme(axis.title = element_text(size = 10),
             title = element_text(size = 12),
             legend.title = element_blank())
+  })
+  
+  # Numero de accidentes
+  output$num_accidentes <- renderUI({
+    n <- nrow(filtered_data_map())
+    
+    div(style = "padding: 8px; background-color: #3c3c3c; border: 1px solid #555; border-radius: 4px; color: white;",
+        HTML(paste0("<strong>Nº de accidentes:</strong> ", n))
+    )
+  })
+  
+  # Mapa de accidentes
+  output$num_accidentes <- renderUI({
+    n <- nrow(filtered_data_map())
+    
+    div(style = "padding: 8px; background-color: #3c3c3c; border: 1px solid #555; border-radius: 4px; color: white;",
+        HTML(paste0("<strong>Nº de accidentes:</strong> ", n))
+    )
+  })
+  
+  output$mapa_accidentes <- renderLeaflet({
+    df <- filtered_data_map()
+    
+    df_fallecidos <- df |> 
+      filter(NUM_PERSONS_KILLED > 0)
+    
+    leaflet(df) |> 
+      addTiles() |> 
+      addHeatmap(
+        lng = ~LONGITUDE,
+        lat = ~LATITUDE,
+        radius = 12,
+        blur = 15,
+        max = 0.05
+      ) |> 
+      addLabelOnlyMarkers(
+        data = df_fallecidos,
+        lng = ~LONGITUDE,
+        lat = ~LATITUDE,
+        label = "†",
+        labelOptions = labelOptions(
+          noHide = TRUE,
+          direction = "top",
+          textOnly = TRUE,
+          style = list(
+            "color" = "black",
+            "font-size" = "16px",
+            "font-weight" = "bold"
+          )
+        )
+      ) |> 
+      addControl(
+        html = HTML("<div style='background-color: rgba(255,255,255,0.8); padding: 6px; border-radius: 4px; font-size: 14px;'>
+                  <b>†: Fallecidos</b>
+                  </div>"),
+        position = "bottomright"
+      )
+  })
+  
+  # Mapa evolutivo
+  
+  # Renderizar el primer subconjunto al iniciar la app
+  output$mapa_evolutivo <- renderLeaflet({
+    subset_data <- get_subset(current_index())
+    
+    leaflet(subset_data) |> 
+      addTiles() |> 
+      addHeatmap(
+        lng = ~LONGITUDE,
+        lat = ~LATITUDE,
+        intensity = ~NUM_PERSONS_KILLED + NUM_PERSONS_INJURED,
+        radius = 15,
+        blur = 20,
+        max = 0.05
+      )
+  })
+  
+  output$rango_fechas <- renderUI({
+    subset_data <- get_subset(current_index())
+    fecha_min <- min(subset_data$DATE, na.rm = TRUE)
+    fecha_max <- max(subset_data$DATE, na.rm = TRUE)
+    
+    rango <- paste0(format(fecha_min, "%Y/%m/%d"), 
+                    " - ", format(fecha_max, "%Y/%m/%d"))
+    
+    div(
+      style = "margin-top: 15px; padding: 10px; background-color: #222;
+             color: #fff; font-size: 20px; text-align: center;
+             border-radius: 8px; border: 1px solid #444;",
+      rango
+    )
+  })
+  
+  # Al presionar el botón, avanzar al siguiente subconjunto
+  observeEvent(input$start, {
+    new_index <- if (current_index() < total_subconjuntos) {
+      current_index() + 1
+    } else {
+      1
+    }
+    current_index(new_index)
   })
   
 }
