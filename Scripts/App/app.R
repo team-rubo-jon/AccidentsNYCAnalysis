@@ -623,12 +623,13 @@ server <- function(input, output, session) {
         
         div(style = "position: relative; height: 60px; background-color: transparent; width: 100%;",
             
-            # Línea base gris
-            div(style = "position: absolute; top: 30px; left: -4%; width: 108%; height: 2px; background-color: #888;"),
+            # Línea base gris (más corta y centrada)
+            div(style = "position: absolute; top: 30px; left: 3%; width: 94%; height: 2px; background-color: #888;"),
             
             # Ticks y etiquetas
             lapply(seq_along(años), function(i) {
-              left_pos <- paste0((as.numeric(as.Date(paste0(años[i], "-01-01")) - fecha_min) / total_days) * 100, "%")
+              pct_pos <- (as.numeric(as.Date(paste0(años[i], "-01-01")) - fecha_min) / total_days) * 100
+              left_pos <- paste0(3 + pct_pos * 0.94, "%")  # Ajustado al nuevo ancho del 94%
               label <- if (años[i] %% 2 == 0) as.character(años[i]) else NULL
               
               tagList(
@@ -646,10 +647,10 @@ server <- function(input, output, session) {
               )
             }),
             
-            # Indicador azul brillante
+            # Indicador azul (ajustado también al ancho relativo)
             div(
               style = paste0(
-                "position: absolute; top: 26px; left: ", start_pct, "%; width: ", width_pct, "%; ",
+                "position: absolute; top: 26px; left: ", 3 + start_pct * 0.94, "%; width: ", width_pct * 0.94, "%; ",
                 "height: 8px; background-color: #00c8ff; border-radius: 5px; ",
                 "box-shadow: 0 0 6px #00c8ff, 0 0 10px #00c8ff; transition: left 0.3s, width 0.3s;"
               )
@@ -658,9 +659,10 @@ server <- function(input, output, session) {
         
         div(
           paste0(format(current_start, "%Y/%m/%d"), " → ", format(current_end, "%Y/%m/%d")),
-          style = "color: #cccccc; font-size: 13px; margin-top: 8px; text-align: center; font-style: italic;"
+          style = "color: #aaa; font-size: 13px; margin-top: 8px; text-align: center; font-style: italic;"
         )
       )
+      
     })
   })
   
@@ -903,25 +905,30 @@ server <- function(input, output, session) {
     hc <- data_list$hc
     data_borough_sum <- data_list$data
     
-    # Crear y configurar dendrograma
     dend <- as.dendrogram(hc)
     dend <- color_branches(dend, k = input$k)
-    dend <- set(dend, "hang", -1)
-    dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])  # Etiquetas ordenadas
+    dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])
     
-    # Ajustar márgenes para que las etiquetas no se corten
-    op <- par(no.readonly = TRUE)  
-    par(mar = c(8, 4, 4, 2))       
+    # Convertir a objeto ggplot
+    # Convertir y girar el dendrograma
+    ggd <- as.ggdend(dend)
+    ggd$labels$angle <- 0  # Para que queden horizontales si se desea
     
-    # Graficar dendrograma
-    plot(dend, main = "Dendrograma de distritos", horiz = FALSE, axes = FALSE)
+    # Graficar en orientación horizontal
+    ggplot(ggd, horiz = TRUE) +  # ESTA LÍNEA CAMBIA
+      labs(title = "Dendrograma de distritos") +
+      theme_minimal(base_family = "Roboto Condensed") +
+      theme(
+        plot.background = element_rect(fill = "#F4F4F4", color = NA),
+        panel.background = element_rect(fill = "#F4F4F4", color = NA),
+        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
+        axis.text = element_text(color = "#2E2E2E", size = 10),
+        axis.title = element_text(color = "#2E2E2E", size = 11),
+        panel.grid.major = element_line(color = "#CCCCCC"),
+        panel.grid.minor = element_blank()
+      )
     
-    # Dibujar rectángulos de clúster si se selecciona
-    if (input$show_rect) rect.dendrogram(dend, k = input$k, border = "blue")
-    
-    par(op)  # Restaurar márgenes originales
   })
-  
   
   
   
@@ -1014,8 +1021,26 @@ server <- function(input, output, session) {
   
   output$ca_biplot <- renderPlot({
     req(ca_result())
-    plot(ca_result(), main = "Biplot del Análisis de Correspondencias", col.row = "blue", col.col = "red")
+    
+    factoextra::fviz_ca_biplot(
+      ca_result(),
+      repel = TRUE,
+      title = "Biplot del Análisis de Correspondencias",
+      col.row = "#1F3B73",  # Azul NYPD
+      col.col = "#FF4C4C"   # Rojo alerta
+    ) +
+      theme_minimal(base_family = "Roboto Condensed") +
+      theme(
+        plot.background = element_rect(fill = "#F4F4F4", color = NA),
+        panel.background = element_rect(fill = "#F4F4F4", color = NA),
+        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
+        axis.text = element_text(color = "#2E2E2E", size = 10),
+        axis.title = element_text(color = "#2E2E2E", size = 11),
+        panel.grid.major = element_line(color = "#CCCCCC"),
+        panel.grid.minor = element_blank()
+      )
   })
+  
   
   
   output$ca_contrib <- renderPlot({
@@ -1025,12 +1050,26 @@ server <- function(input, output, session) {
     eig_vals <- ca_res$eig
     if (is.null(eig_vals) || nrow(eig_vals) == 0) return()
     
-    barplot(eig_vals[, 2],
-            names.arg = paste0("Dim", seq_along(eig_vals[, 2])),
-            main = "Porcentaje de varianza explicada",
-            ylab = "Porcentaje",
-            col = "skyblue")
+    df <- data.frame(
+      Dimension = factor(paste0("Dim", seq_along(eig_vals[, 2])), levels = paste0("Dim", seq_along(eig_vals[, 2]))),
+      Porcentaje = eig_vals[, 2]
+    )
+    
+    ggplot(df, aes(x = Dimension, y = Porcentaje)) +
+      geom_bar(stat = "identity", fill = "#1F3B73") +
+      labs(title = "Porcentaje de varianza explicada", y = "Porcentaje", x = NULL) +
+      theme_minimal(base_family = "Roboto Condensed") +
+      theme(
+        plot.background = element_rect(fill = "#F4F4F4", color = NA),
+        panel.background = element_rect(fill = "#F4F4F4", color = NA),
+        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
+        axis.text = element_text(color = "#2E2E2E", size = 10),
+        axis.title = element_text(color = "#2E2E2E", size = 11),
+        panel.grid.major = element_line(color = "#CCCCCC"),
+        panel.grid.minor = element_blank()
+      )
   })
+  
   
   output$ca_interpretation <- renderText({
     ca_res <- ca_result()
