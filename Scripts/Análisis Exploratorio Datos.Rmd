@@ -867,7 +867,8 @@ Sin embargo, sí que puede ser interesante predecir la causa del accidente en fu
 ```{r}
 # 1. Crear variable VEHICLE_COUNT --> Si hay un segundo vehículo incluimos 2, sino 1.
 data_sampled <- data_sampled |> 
-  mutate(VEHICLE_COUNT = ifelse(is.na(VEHICLE_2), 1, 2))
+  mutate(VEHICLE_COUNT = ifelse(is.na(VEHICLE_2), 1, 2)) |> 
+  mutate(CAUSE = as.factor(CAUSE))
 
 # 2. Quedarse con las 5 causas más frecuentes
 top_causes <- data_sampled |> 
@@ -1080,8 +1081,6 @@ plot(ca_result)
 ```
 
 ### 4. Causa del accidente y día de la semana: 
-
-*NO PUEDO OBTENER EL DÍA DE LA SEMANA DE TODOS, PERO IGUAL CON LOS QUE TENEMOS NOS BASTA*
 
 ```{r}
 # Extraer el día de la semana de la variable TIME

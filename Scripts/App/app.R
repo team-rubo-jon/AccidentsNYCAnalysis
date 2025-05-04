@@ -10,6 +10,7 @@ library(DT)
 library(ggdendro)
 library(cluster)
 library(factoextra)
+library(FactoMineR)
 
 
 data_sampled <- read.csv("data_sampled.csv")
@@ -28,6 +29,14 @@ data_time <- data_sampled |>
 # Obtener fechas mínimas y máximas para el rango
 min_date <- min(data_time$DATE)
 max_date <- max(data_time$DATE)
+
+# Variables HOUR y DAYS_OF_WEEK:
+data_sampled <- data_sampled |> 
+  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")),
+         DAY_OF_WEEK = weekdays(as.Date(DATE, format = "%Y-%m-%d")))
+data_sampled$HOUR <- as.factor(data_sampled$HOUR)
+data_sampled$DAY_OF_WEEK <- toupper(data_sampled$DAY_OF_WEEK)
+data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))  # Elimina espacios
 
 
 # Crear tema personalizado
@@ -68,42 +77,71 @@ theme_nyc <- function() {
 # UI
 ui <- fluidPage(
   
-  # Aplicar el tema personalizado 'ny_theme'
   theme = ny_theme,
   
-  titlePanel("Análisis de Agrupamiento"),
+  titlePanel("Análisis de Datos de Accidentes en NYC"),
   
-  sidebarLayout(
-    sidebarPanel(
-      checkboxGroupInput("plot_choices", 
-                         "Selecciona las opciones para ver:",
-                         choices = c("Dendrograma", "Silueta", "Tabla"),
-                         selected = c("Dendrograma", "Silueta", "Tabla")),
-      sliderInput("k", 
-                  "Número de grupos (k):", 
-                  min = 2, max = 4, value = 3),
-      checkboxInput("show_rect", "Mostrar rectángulos en el dendrograma", value = TRUE)
+  tabsetPanel(
+    
+    tabPanel("Análisis de Agrupamiento",
+             sidebarLayout(
+               sidebarPanel(
+                 checkboxGroupInput("plot_choices", 
+                                    "Selecciona las opciones para ver:",
+                                    choices = c("Dendrograma", "Silueta", "Tabla"),
+                                    selected = c("Dendrograma", "Silueta", "Tabla")),
+                 sliderInput("k", 
+                             "Número de grupos (k):", 
+                             min = 2, max = 4, value = 3),
+                 checkboxInput("show_rect", "Mostrar rectángulos en el dendrograma", value = TRUE)
+               ),
+               mainPanel(
+                 conditionalPanel(
+                   condition = "input.plot_choices.indexOf('Dendrograma') > -1",
+                   plotOutput("dendrogramPlot", height = "500px")
+                 ),
+                 conditionalPanel(
+                   condition = "input.plot_choices.indexOf('Silueta') > -1",
+                   plotOutput("silhouettePlot")
+                 ),
+                 conditionalPanel(
+                   condition = "input.plot_choices.indexOf('Tabla') > -1",
+                   DTOutput("boroughTable")
+                 )
+               )
+             )
     ),
     
-    mainPanel(
-      conditionalPanel(
-        condition = "input.plot_choices.indexOf('Dendrograma') > -1",
-        plotOutput("dendrogramPlot", height = "500px")
-      ),
-      conditionalPanel(
-        condition = "input.plot_choices.indexOf('Silueta') > -1",
-        plotOutput("silhouettePlot")
-      ),
-      conditionalPanel(
-        condition = "input.plot_choices.indexOf('Tabla') > -1",
-        DTOutput("boroughTable")
-      )
+    tabPanel("Análisis de Correspondencias",
+             sidebarLayout(
+               sidebarPanel(
+                 h4("Seleccione dos variables categóricas"),
+                 selectInput("var1", "Variable 1:", 
+                             choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
+                             selected = "VEHICLE_1"),
+                 selectInput("var2", "Variable 2:", 
+                             choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
+                             selected = "CAUSE")
+               ),
+               mainPanel(
+                 h4("Interpretación del análisis"),
+                 verbatimTextOutput("ca_interpretation"),
+                 fluidRow(
+                   column(6, plotOutput("ca_biplot", height = "500px")),
+                   column(6, plotOutput("ca_contrib", height = "500px"))
+                 )
+               )
+             )
     )
+    
   )
 )
 
+
 # Server
 server <- function(input, output) {
+  
+  # ELEMENTOS PARA EL CLÚSTER JERÁRQUICO
   
   # Reactivo para almacenar los datos del dendrograma
   dend_data <- reactive({
@@ -197,6 +235,105 @@ server <- function(input, output) {
     fviz_silhouette(silhouette(clusters, dist_matrix)) + 
       ggtitle(paste("Índice de Silueta para k =", k)) +
       theme_nyc()  # Usar el tema 'ny_theme' también en los gráficos
+  })
+  
+  
+  # ELEMENTOS PARA EL ANÁLISIS DE CORRESPONDENCIA
+  
+  observeEvent(c(input$var1, input$var2), {
+    req(input$var1 != input$var2)
+  })
+  
+  ca_data <- reactive({
+    var1 <- input$var1
+    var2 <- input$var2
+    df <- data_sampled
+    
+    # Filtrado de top 10 para VEHICLE_1 y CAUSE
+    if (var1 %in% c("CAUSE", "VEHICLE_1")) {
+      top10_var1 <- names(sort(table(df[[var1]]), decreasing = TRUE))[1:10]
+      df <- df[df[[var1]] %in% top10_var1, ]
+    }
+    if (var2 %in% c("CAUSE", "VEHICLE_1")) {
+      top10_var2 <- names(sort(table(df[[var2]]), decreasing = TRUE))[1:10]
+      df <- df[df[[var2]] %in% top10_var2, ]
+    }
+    
+    # Asegurarse de que las variables no estén vacías ni completamente NA
+    if (nrow(df) == 0 || all(is.na(df[[var1]])) || all(is.na(df[[var2]]))) {
+      return(NULL)
+    }
+    
+    # Filtrado de las variables para que no tengan valores vacíos
+    df_filtered <- df %>%
+      filter(!is.na(df[[var1]]) & !is.na(df[[var2]]))
+    
+    table(df_filtered[[var1]], df_filtered[[var2]])
+  })
+  
+  
+  
+  ca_result <- reactive({
+    req(input$var1, input$var2)
+    
+    var1_top <- names(sort(table(data_sampled[[input$var1]]), decreasing = TRUE))[1:10]
+    var2_top <- names(sort(table(data_sampled[[input$var2]]), decreasing = TRUE))[1:10]
+    
+    df <- data_sampled[data_sampled[[input$var1]] %in% var1_top & 
+                         data_sampled[[input$var2]] %in% var2_top, ]
+    
+    tab <- table(df[[input$var1]], df[[input$var2]])
+    
+    # Eliminar filas o columnas vacías (todo ceros)
+    tab <- tab[rowSums(tab) > 0, colSums(tab) > 0]
+    
+    print(tab)
+    
+    if (nrow(tab) < 2 || ncol(tab) < 2) return(NULL)
+    
+    FactoMineR::CA(tab, graph = FALSE)
+  })
+  
+  
+  
+  output$ca_biplot <- renderPlot({
+    req(ca_result())
+    plot(ca_result(), main = "Biplot del Análisis de Correspondencias", col.row = "blue", col.col = "red")
+  })
+  
+  
+  output$ca_contrib <- renderPlot({
+    ca_res <- ca_result()
+    req(!is.null(ca_res))
+    
+    eig_vals <- ca_res$eig
+    if (is.null(eig_vals) || nrow(eig_vals) == 0) return()
+    
+    barplot(eig_vals[, 2],
+            names.arg = paste0("Dim", seq_along(eig_vals[, 2])),
+            main = "Porcentaje de varianza explicada",
+            ylab = "Porcentaje",
+            col = "skyblue")
+  })
+  
+  output$ca_interpretation <- renderText({
+    ca_res <- ca_result()
+    req(!is.null(ca_res))
+    
+    eig_vals <- ca_res$eig
+    if (is.null(eig_vals) || nrow(eig_vals) < 2) {
+      return("No se puede interpretar porque los datos no generan dimensiones suficientes.")
+    }
+    
+    var1 <- input$var1
+    var2 <- input$var2
+    
+    dim1 <- round(eig_vals[1, 2], 2)
+    dim2 <- round(eig_vals[2, 2], 2)
+    
+    paste0("El análisis de correspondencias entre ", var1, " y ", var2,
+           " revela que las dos primeras dimensiones explican aproximadamente el ",
+           dim1 + dim2, "% de la varianza total. Esto sugiere una relación estructurada entre ambas variables.")
   })
 }
 
