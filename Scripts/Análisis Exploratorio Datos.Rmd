@@ -10,6 +10,7 @@ library(tidyverse)
 library(viridis)
 library(leaflet)
 library(ggplot2)
+library(ggbiplot)
 library(dplyr)
 library(GGally)
 library(factoextra)
@@ -19,6 +20,11 @@ library(psych)
 library(caret)
 library(MASS)
 library(ca)
+library(stringdist)
+library(igraph)
+library(tidygraph)
+library(ggraph)
+library(pROC)
 ```
 
 ```{r}
@@ -30,7 +36,7 @@ library(ca)
 Jon:
 
 ```{r}
-data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
+#data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
 Rubén:
@@ -42,7 +48,7 @@ Rubén:
 Fermin:
 
 ```{r}
-#data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
 # INTRODUCCION
@@ -222,13 +228,13 @@ Como a partir de ahora trabajaremos con esta muestra en lugar del dataset comple
 
 ```{r}
 write.csv(data_sampled, "data_sampled.csv", row.names = FALSE)
-write.csv(data_sampled, "Scripts/App/data_sampled.csv", row.names = FALSE) # para la app
+write.csv(data_sampled, "App/data_sampled.csv", row.names = FALSE)
 ```
 
 ### Leer muestra:
 
 ```{r}
-data_sampled <- read.csv("Scripts/data_sampled.csv")
+data_sampled <- read.csv("data_sampled.csv")
 ```
 
 *TEMPORAL, PARA NO ANDAR ABRIENDO EL ARCHIVO GRANDE*
@@ -247,9 +253,6 @@ Vamos a mostrar un histograma por cada variable o variables que creamos que van 
 ## Variables 'DATE' y 'TIME':
 
 ```{r}
-data_sampled <- data_sampled |> 
-  mutate(DATE = as.Date(DATE, format = "%m/%d/%Y"))
-
 data_time <- data_sampled |> 
   mutate(DATE_MONTH = yearmonth(DATE),
          DATE_YEAR = year(DATE)) |> 
@@ -423,7 +426,6 @@ Primero, vamos a ver la frecuencia de las distintas causas de los accidentes reg
 causes_cleaned <- data_sampled |> 
   count(CAUSE, name = "FREQUENCY") |>  
   arrange(desc(FREQUENCY))
-
 ```
 
 Nos ayudamos de un gráfico de barras para mostrar las frecuencias.
@@ -986,8 +988,6 @@ ggplot(conf_matrix_df, aes(x = Predicho, y = Real, fill = Freq)) +
 #### Curva ROC:
 
 ```{r}
-library(pROC)
-
 # Calcular la curva ROC
 roc_curve <- roc(test_data$CAUSE, as.numeric(predictions))
 plot(roc_curve, main = "Curva ROC")
@@ -1086,7 +1086,7 @@ plot(ca_result)
 
 ```{r}
 # Extraer el día de la semana de la variable TIME
-data_sampled$DAY_OF_WEEK <- weekdays(as.Date(data_sampled$DATE, format = "%d/%m/%Y"))
+data_sampled$DAY_OF_WEEK <- weekdays(as.Date(data_sampled$DATE, format = "%Y-%m-%d"))
 
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$CAUSE, data_sampled$DAY_OF_WEEK)
@@ -1156,10 +1156,6 @@ pam_clusters <- pam(x = cause_norm, k = 4, metric = "manhattan")
 resultados <- data.frame(ciudad = names(pam_clusters$cluster), cluster = as.factor(pam_clusters$cluster)) |> 
     arrange(cluster)
 
-library(igraph)
-library(tidygraph)
-library(ggraph)
-
 datos_graph <- graph_from_data_frame(d = resultados, directed = TRUE)
 datos_graph <- as_tbl_graph(datos_graph)
 
@@ -1212,7 +1208,6 @@ cause_features_scaled <- cause_features |>
 pca_res <- prcomp(cause_features_scaled, center = TRUE, scale. = TRUE)
 biplot(pca_res, main = "PCA de las causas")
 
-library(ggbiplot)
 ggbiplot(pca_res, choices = c(1,2))
 ```
 
@@ -1239,8 +1234,6 @@ fviz_cluster(km, data = cause_features_scaled,
 Establecer similitudes entre los nombres de las causas.
 
 ```{r}
-library(stringdist)
-
 # Crear matriz de distancias entre nombres de causas
 dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")  # método Jaro-Winkler, o "lv" para Levenshtein
 rownames(dist_matrix) <- causes_cleaned$CAUSE
@@ -1302,8 +1295,6 @@ data_sampled <- data_sampled |>
 ## Analisis discriminante
 
 ```{r}
-library(MASS)
-
 data_sampled$BOROUGH_NUM <- as.numeric(factor(data_sampled$BOROUGH))
 
 modelo_lda <- lda(formula = GRUPO_CAUSA ~ NUM_PERSONS_INJURED + NUM_PERSONS_KILLED + BOROUGH_NUM, data = data_sampled)

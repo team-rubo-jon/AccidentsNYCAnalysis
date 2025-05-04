@@ -7,11 +7,6 @@ library(lubridate)
 
 data_sampled <- read.csv("data_sampled.csv")
 
-#Cambiar formato de la columna DATE
-data_sampled <- data_sampled %>%
-  mutate(DATE = mdy(DATE))
-
-
 ui <- navbarPage(
   p(strong('Visualización de Accidentes de Tráfico')),
   theme = shinytheme('darkly'),

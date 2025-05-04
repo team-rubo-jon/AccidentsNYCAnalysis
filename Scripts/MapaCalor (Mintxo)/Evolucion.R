@@ -7,7 +7,7 @@ library(lubridate)
 
 data_sampled <- read.csv("data_sampled.csv")
 data_sampled <- data_sampled %>%
-  mutate(DATE = mdy(DATE)) %>%
+  mutate(DATE = as.Date(DATE, format = "%Y-%m-%d")) %>%
   arrange(DATE)
 
 window_size <- 2500
@@ -27,6 +27,16 @@ ui <- navbarPage(
                    border: 1px solid #444; margin-bottom: 15px; text-align: center;", 
                  "CONTROLES"
                ),
+               
+               dateInput(
+                 "fecha_inicio",
+                 label = "Selecciona fecha de inicio:",
+                 value = min(data_sampled$DATE, na.rm = TRUE),
+                 min = min(data_sampled$DATE, na.rm = TRUE),
+                 max = max(data_sampled$DATE, na.rm = TRUE),
+                 format = "yyyy-mm-dd"
+               ),
+               
                tags$div(
                  style = "display: flex; justify-content: center; gap: 10px; margin-top: 20px;",
                  actionButton("start", "Comenzar", class = "btn-success", 
@@ -36,7 +46,7 @@ ui <- navbarPage(
                ),
                br(), br(),
                uiOutput("timeline_bar"),
-               br(), br(),
+               br(),
                div(
                  style = "background-color: #333; padding: 15px; border-radius: 8px; 
                    color: #fff; font-size: 14px; border: 1px solid #444; margin-top: 20px;",
@@ -76,7 +86,16 @@ server <- function(input, output, session) {
     invalidateLater(interval_ms, session)
     req(running())
     
+    fecha_inicio <- input$fecha_inicio
     i <- isolate(index())
+    
+    if (!is.null(fecha_inicio)) {
+      pos_inicio <- which.max(data_sampled$DATE >= fecha_inicio)
+      if (i < pos_inicio) {
+        index(pos_inicio)
+        return()
+      }
+    }
     
     if ((i + window_size) <= nrow(data_sampled)) {
       subset <- data_sampled[i:(i + window_size), ]
@@ -101,28 +120,65 @@ server <- function(input, output, session) {
     output$timeline_bar <- renderUI({
       fecha_min <- min(data_sampled$DATE, na.rm = TRUE)
       fecha_max <- max(data_sampled$DATE, na.rm = TRUE)
-      current_min <- min(subset$DATE, na.rm = TRUE)
+      current_start <- min(subset$DATE, na.rm = TRUE)
+      current_end <- max(subset$DATE, na.rm = TRUE)
       
-      porcentaje <- round(
-        as.numeric(difftime(current_min, fecha_min, units = "days")) /
-          as.numeric(difftime(fecha_max, fecha_min, units = "days")) * 100
-      )
+      # Convert to numeric for consistent difference
+      total_days <- as.numeric(fecha_max - fecha_min)
+      start_days <- as.numeric(current_start - fecha_min)
+      end_days <- as.numeric(current_end - fecha_min)
+      
+      start_pct <- (start_days / total_days) * 100
+      end_pct <- (end_days / total_days) * 100
+      width_pct <- end_pct - start_pct
+      
+      años <- seq(year(fecha_min), year(fecha_max), by = 1)
       
       tagList(
-        div("Progreso temporal:", style = "color: #fff; font-weight: bold; margin-bottom: 5px;"),
-        tags$div(style = "background-color: #444; height: 20px; border-radius: 10px; overflow: hidden;",
-                 tags$div(style = paste0(
-                   "height: 100%; width: ", porcentaje, "%; background-color: #00c8ff;
-             transition: width 0.2s; border-radius: 10px;"
-                 ))
+        div("Línea temporal:", style = "color: #fff; font-weight: bold; margin-bottom: 10px;"),
+        
+        div(style = "position: relative; height: 60px; background-color: transparent; width: 100%;",
+            
+            # Línea base
+            div(style = "position: absolute; top: 30px; left: -4%; width: 103%; height: 2px; background-color: #888;"),
+            
+            # Ticks y etiquetas
+            lapply(seq_along(años), function(i) {
+              left_pos <- paste0((as.numeric(as.Date(paste0(años[i], "-01-01")) - fecha_min) / total_days) * 100, "%")
+              label <- if (años[i] %% 2 == 0) as.character(años[i]) else NULL
+              
+              tagList(
+                div(style = paste0("position: absolute; left: ", left_pos, 
+                                   "; top: 25px; width: 1px; height: 10px; background-color: #ccc;")),
+                if (!is.null(label)) {
+                  div(label,
+                      style = paste0(
+                        "position: absolute; left: ", left_pos, 
+                        "; top: 0px; transform: rotate(-45deg); transform-origin: left bottom; ",
+                        "font-size: 10px; color: #ccc;"
+                      )
+                  )
+                }
+              )
+            }),
+            
+            # Indicador azul
+            div(
+              style = paste0(
+                "position: absolute; top: 26px; left: ", start_pct, "%; width: ", width_pct, "%; ",
+                "height: 8px; background-color: #00c8ff; border-radius: 5px; ",
+                "box-shadow: 0 0 5px #00c8ff; transition: left 0.2s, width 0.2s;"
+              )
+            )
         ),
+        
         div(
-          paste0(format(current_min, "%Y/%m/%d"), " → ", 
-                 format(max(subset$DATE, na.rm = TRUE), "%Y/%m/%d")),
-          style = "color: #ccc; font-size: 14px; margin-top: 5px;"
+          paste0(format(current_start, "%Y/%m/%d"), " → ", format(current_end, "%Y/%m/%d")),
+          style = "color: #ccc; font-size: 14px; margin-top: 10px; text-align: center;"
         )
       )
     })
+    
   })
 }
 
