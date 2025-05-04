@@ -32,6 +32,14 @@ borough_choices <- unique(na.omit(data_sampled$BOROUGH))
 subconjunto_size <- 500
 total_subconjuntos <- ceiling(nrow(data_sampled) / subconjunto_size)
 
+# Variables HOUR y DAYS_OF_WEEK para el análisis de correspondencia:
+data_sampled <- data_sampled |> 
+  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")),
+         DAY_OF_WEEK = weekdays(as.Date(DATE, format = "%Y-%m-%d")))
+data_sampled$HOUR <- as.factor(data_sampled$HOUR)
+data_sampled$DAY_OF_WEEK <- toupper(data_sampled$DAY_OF_WEEK)
+data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))  # Elimina espacios
+
 # Crear tema personalizado
 ny_theme <- bs_theme(
   version = 5,
@@ -313,47 +321,97 @@ ui <- navbarPage(
     )
   ),
   
-  # Panel para los analisis
+  # Panel para los análisis
   tabPanel(
     tags$div("Análisis de interés 💡️", style = "font-size: 18px; font-weight: bold;"),
+    
     sidebarLayout(
       sidebarPanel(
-        # Selector desplegable
         selectInput(
           "main_view",
           "Seleccionar vista:",
           choices = c(
-            "PCA 🔍" = "pca",
-            "Análisis Cluster 💠️"= "cluster"
+            "Análisis Cluster Jerárquico 💠️" = "cluster",
+            "Análisis de Correspondencia 👥" = "corresp"
           ),
-          selected = "pca"
+          selected = "cluster"
         ),
         
-        # Panel condicional para el pca
+        # Widgets Análisis Jerárquico
         conditionalPanel(
-          condition = "input.main_view == 'pca'"
-
+          condition = "input.main_view == 'cluster'",
+          checkboxGroupInput("plot_choices", 
+                             "Selecciona las opciones para ver:",
+                             choices = c("Dendrograma", "Silueta", "Tabla"),
+                             selected = c("Dendrograma", "Silueta", "Tabla")),
+          sliderInput("k", 
+                      "Número de grupos (k):", 
+                      min = 2, max = 4, value = 3),
+          checkboxInput("show_rect", "Mostrar rectángulos en el dendrograma", value = TRUE)
         ),
         
-        # Panel condicional para el cluster
+        # Widgets Análisis de Correspondencia
         conditionalPanel(
-          condition = "input.main_view == 'cluster'"
-          
-        ),
+          condition = "input.main_view == 'corresp'",
+          h4("Seleccione dos variables categóricas"),
+          radioButtons("var1", "Elige Variable 1:", 
+                       choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
+                       selected = "VEHICLE_1"),
+          radioButtons("var2", "Elige Variable 2:", 
+                       choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
+                       selected = "CAUSE"),
+          tags$script(HTML("
+          Shiny.addCustomMessageHandler('disable_radio_option', function(data) {
+            var inputId = data.inputId;
+            var optionToDisable = data.option;
+            var radios = document.getElementsByName(inputId);
+            for (var i = 0; i < radios.length; i++) {
+              if (radios[i].value === optionToDisable) {
+                radios[i].disabled = true;
+                radios[i].parentElement.style.color = '#999999';
+              } else {
+                radios[i].disabled = false;
+                radios[i].parentElement.style.color = '';
+              }
+            }
+          });
+        "))
+        )
       ),
       
       mainPanel(
+        # Panel principal Análisis Jerárquico
         conditionalPanel(
-          condition = "input.main_view == 'pca'",
-          tabsetPanel(
-            tabPanel('PCA', plotOutput(outputId = 'pca'))
+          condition = "input.main_view == 'cluster'",
+          conditionalPanel(
+            condition = "input.plot_choices.indexOf('Dendrograma') > -1",
+            plotOutput("dendrogramPlot", height = "500px")
+          ),
+          conditionalPanel(
+            condition = "input.plot_choices.indexOf('Silueta') > -1",
+            plotOutput("silhouettePlot")
+          ),
+          conditionalPanel(
+            condition = "input.plot_choices.indexOf('Tabla') > -1",
+            DTOutput("boroughTable")
           )
         ),
         
+        # Panel principal Análisis de Correspondencia
         conditionalPanel(
-          condition = "input.main_view == 'cluster'",
-          tabsetPanel(
-            tabPanel('Cluster', plotOutput(outputId = 'analisis_cluster'))
+          condition = "input.main_view == 'corresp'",
+          h4("Interpretación del análisis"),
+          verbatimTextOutput("ca_interpretation"),
+          tags$style(HTML("
+          #ca_interpretation {
+            white-space: normal;
+            overflow-y: visible !important;
+            height: auto !important;
+          }
+        ")),
+          fluidRow(
+            column(6, plotOutput("ca_biplot", height = "500px")),
+            column(6, plotOutput("ca_contrib", height = "500px"))
           )
         )
       )
@@ -408,7 +466,7 @@ server <- function(input, output, session) {
     return(df)
   })
   
-  # datos filtrados para el mapa
+  # Datos filtrados para el mapa
   filtered_data_map <- reactive({
     df <- data_sampled |> 
       mutate(DATE = as.Date(DATE))
@@ -719,6 +777,202 @@ server <- function(input, output, session) {
     current_index(new_index)
   })
   
+  
+  # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO:
+  # Reactivo para almacenar los datos del dendrograma
+  dend_data <- reactive({
+    data_borough_sum <- data_sampled |> 
+      group_by(BOROUGH) |> 
+      summarise(
+        total_injured = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+        total_killed = sum(NUM_PERSONS_KILLED, na.rm = TRUE)
+      ) |> 
+      na.omit()
+    
+    data_scaled <- data_borough_sum |> 
+      dplyr::select(-BOROUGH) |> 
+      scale()
+    
+    dist_matrix <- dist(data_scaled)
+    hc <- hclust(dist_matrix, method = 'complete')
+    
+    list(
+      data = data_borough_sum,
+      hc = hc
+    )
+  })
+  
+  output$dendrogramPlot <- renderPlot({
+    data_list <- dend_data()
+    hc <- data_list$hc
+    data_borough_sum <- data_list$data
+    
+    # Crear y configurar dendrograma
+    dend <- as.dendrogram(hc)
+    dend <- color_branches(dend, k = input$k)
+    dend <- set(dend, "hang", -1)
+    dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])  # Etiquetas ordenadas
+    
+    # Ajustar márgenes para que las etiquetas no se corten
+    op <- par(no.readonly = TRUE)  
+    par(mar = c(8, 4, 4, 2))       
+    
+    # Graficar dendrograma
+    plot(dend, main = "Dendrograma de distritos", horiz = FALSE, axes = FALSE)
+    
+    # Dibujar rectángulos de clúster si se selecciona
+    if (input$show_rect) rect.dendrogram(dend, k = input$k, border = "blue")
+    
+    par(op)  # Restaurar márgenes originales
+  })
+  
+  
+  
+  
+  output$boroughTable <- renderDT({
+    k <- input$k
+    data_list <- dend_data()
+    hc <- data_list$hc
+    data_borough_sum <- data_list$data
+    
+    # Asignar clusters
+    clusters <- cutree(hc, k = k)
+    
+    # Crear tabla con la columna Grupo
+    result_table <- data_borough_sum |>
+      mutate(Grupo = as.factor(clusters)) |>  # Convertir a factor para el coloreado
+      arrange(Grupo)
+    
+    datatable(
+      result_table,
+      options = list(
+        dom = 't',  # Elimina controles de búsqueda y paginación
+        pageLength = nrow(result_table)  # Muestra todas las filas
+      ),
+      rownames = FALSE
+    )
+  })
+  
+  output$silhouettePlot <- renderPlot({
+    data_list <- dend_data()
+    hc <- data_list$hc
+    data_borough_sum <- data_list$data
+    
+    # Obtener el número de clústeres (k) desde la entrada
+    k <- input$k
+    
+    # Asignar los clústeres usando cutree
+    clusters <- cutree(hc, k = k)
+    
+    # Calcular la silueta usando la distancia
+    dist_matrix <- dist(data_borough_sum[, c("total_injured", "total_killed")])
+    
+    # Visualizar el índice de silueta con fviz_silhouette
+    fviz_silhouette(silhouette(clusters, dist_matrix)) + 
+      ggtitle(paste("Índice de Silueta para k =", k)) +
+      theme_nyc()  # Usar el tema 'ny_theme' también en los gráficos
+  })
+  
+  # ELEMENTOS PARA EL ANÁLISIS DE CORRESPONDENCIA
+  
+  observeEvent(c(input$var1, input$var2), {
+    req(input$var1 != input$var2)
+  })
+  
+  ca_data <- reactive({
+    req(input$var1, input$var2, input$var1 != input$var2)
+    
+    var1 <- input$var1
+    var2 <- input$var2
+    df <- data_sampled
+    
+    if (var1 %in% c("CAUSE", "VEHICLE_1")) {
+      top10_var1 <- names(sort(table(df[[var1]]), decreasing = TRUE))[1:10]
+      df <- df[df[[var1]] %in% top10_var1, ]
+    }
+    if (var2 %in% c("CAUSE", "VEHICLE_1")) {
+      top10_var2 <- names(sort(table(df[[var2]]), decreasing = TRUE))[1:10]
+      df <- df[df[[var2]] %in% top10_var2, ]
+    }
+    
+    df <- df %>%
+      filter(!is.na(.data[[var1]]), !is.na(.data[[var2]]))
+    
+    tab <- table(df[[var1]], df[[var2]])
+    
+    # Eliminar filas/columnas vacías
+    tab <- tab[rowSums(tab) > 0, colSums(tab) > 0]
+    
+    if (nrow(tab) < 2 || ncol(tab) < 2) return(NULL)
+    
+    tab
+  })
+  
+  ca_result <- reactive({
+    tab <- ca_data()
+    if (is.null(tab)) return(NULL)
+    if (nrow(tab) < 2 || ncol(tab) < 2) return(NULL)
+    
+    FactoMineR::CA(tab, graph = FALSE)
+  })
+  
+  output$ca_biplot <- renderPlot({
+    req(ca_result())
+    plot(ca_result(), main = "Biplot del Análisis de Correspondencias", col.row = "blue", col.col = "red")
+  })
+  
+  
+  output$ca_contrib <- renderPlot({
+    ca_res <- ca_result()
+    req(!is.null(ca_res))
+    
+    eig_vals <- ca_res$eig
+    if (is.null(eig_vals) || nrow(eig_vals) == 0) return()
+    
+    barplot(eig_vals[, 2],
+            names.arg = paste0("Dim", seq_along(eig_vals[, 2])),
+            main = "Porcentaje de varianza explicada",
+            ylab = "Porcentaje",
+            col = "skyblue")
+  })
+  
+  output$ca_interpretation <- renderText({
+    ca_res <- ca_result()
+    req(!is.null(ca_res))
+    
+    eig_vals <- ca_res$eig
+    if (is.null(eig_vals) || nrow(eig_vals) < 2) {
+      return("No se puede interpretar porque los datos no generan dimensiones suficientes.")
+    }
+    
+    var1 <- input$var1
+    var2 <- input$var2
+    
+    dim1 <- round(eig_vals[1, 2], 2)
+    dim2 <- round(eig_vals[2, 2], 2)
+    
+    paste0("El análisis de correspondencias entre ", var1, " y ", var2,
+           " revela que las dos primeras dimensiones explican aproximadamente el ",
+           dim1 + dim2, "% de la varianza total. Esto sugiere una relación estructurada entre ambas variables.")
+  })
+  
+  
+  # Botones análisis de correspondencia:
+  variables <- c("CAUSE", "HOUR", "DAY_OF_WEEK", "VEHICLE_1")
+  
+  observeEvent(input$var1, {
+    session$sendCustomMessage("disable_radio_option", list(
+      inputId = "var2",
+      option = input$var1
+    ))
+  })
+  
+  observeEvent(input$var2, {
+    session$sendCustomMessage("disable_radio_option", list(
+      inputId = "var1",
+      option = input$var2
+    ))
+  })
 }
 
 # Run the application
