@@ -11,6 +11,7 @@ library(ggdendro)
 library(cluster)
 library(factoextra)
 library(FactoMineR)
+library(shinyjs)
 
 
 data_sampled <- read.csv("data_sampled.csv")
@@ -77,6 +78,8 @@ theme_nyc <- function() {
 # UI
 ui <- fluidPage(
   
+  useShinyjs(),
+  
   theme = ny_theme,
   
   titlePanel("Análisis de Datos de Accidentes en NYC"),
@@ -116,16 +119,39 @@ ui <- fluidPage(
              sidebarLayout(
                sidebarPanel(
                  h4("Seleccione dos variables categóricas"),
-                 selectInput("var1", "Variable 1:", 
+                 radioButtons("var1", "Elige Variable 1:", 
                              choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
                              selected = "VEHICLE_1"),
-                 selectInput("var2", "Variable 2:", 
+                 radioButtons("var2", "Elige Variable 2:", 
                              choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
-                             selected = "CAUSE")
+                             selected = "CAUSE"),
+                 tags$script(HTML("
+                  Shiny.addCustomMessageHandler('disable_radio_option', function(data) {
+                    var inputId = data.inputId;
+                    var optionToDisable = data.option;
+                    var radios = document.getElementsByName(inputId);
+                    for (var i = 0; i < radios.length; i++) {
+                      if (radios[i].value === optionToDisable) {
+                        radios[i].disabled = true;
+                        radios[i].parentElement.style.color = '#999999';
+                      } else {
+                        radios[i].disabled = false;
+                        radios[i].parentElement.style.color = '';
+                      }
+                    }
+                  });
+                "))
                ),
                mainPanel(
                  h4("Interpretación del análisis"),
                  verbatimTextOutput("ca_interpretation"),
+                 tags$style(HTML("
+                  #ca_interpretation {
+                    white-space: normal;
+                    overflow-y: visible !important;
+                    height: auto !important;
+                  }
+                ")),
                  fluidRow(
                    column(6, plotOutput("ca_biplot", height = "500px")),
                    column(6, plotOutput("ca_contrib", height = "500px"))
@@ -139,7 +165,7 @@ ui <- fluidPage(
 
 
 # Server
-server <- function(input, output) {
+server <- function(input, output, session) {
   
   # ELEMENTOS PARA EL CLÚSTER JERÁRQUICO
   
@@ -334,6 +360,24 @@ server <- function(input, output) {
     paste0("El análisis de correspondencias entre ", var1, " y ", var2,
            " revela que las dos primeras dimensiones explican aproximadamente el ",
            dim1 + dim2, "% de la varianza total. Esto sugiere una relación estructurada entre ambas variables.")
+  })
+  
+  
+# Botones análisis de correspondencia:
+  variables <- c("CAUSE", "HOUR", "DAY_OF_WEEK", "VEHICLE_1")
+  
+  observeEvent(input$var1, {
+    session$sendCustomMessage("disable_radio_option", list(
+      inputId = "var2",
+      option = input$var1
+    ))
+  })
+  
+  observeEvent(input$var2, {
+    session$sendCustomMessage("disable_radio_option", list(
+      inputId = "var1",
+      option = input$var2
+    ))
   })
 }
 
