@@ -1,5 +1,5 @@
 ---
-title: "NYC Traffic Report"
+title: "Análisis accidentes de tráfico NY"
 author: "Jon Aguas, Fermín Fernandez y Rubén González"
 output:
   html_document:
@@ -506,7 +506,7 @@ En cuanto a las variables por separado sin datos repetidos, ninguna muestra corr
 
 ## Variable 'CAUSE':
 
-Primero, vamos a ver la frecuencia de las distintas causas de los accidentes registrados. Para ello, vamos a crear una tabla con los diferentes factores contribuyentes y su frecuencia.
+Primero, vamos a ver la frecuencia de las distintas causas de los accidentes registrados. Para ello, vamos a crear una tabla con los diferentes factores contribuyentes y su frecuencia:
 
 ```{r}
 causes_cleaned <- data_sampled |> 
@@ -520,7 +520,7 @@ Nos ayudamos de un gráfico de barras para mostrar las frecuencias.
 causes_cleaned |> 
   ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
-  coord_flip() +  # Rota el gráfico para mejor visualización
+  coord_flip() +
   labs(title = "Frecuencia de Factores Contribuyentes de los Accidentes",
        x = "Causas del Accidente",
        y = "Frecuencia") +
@@ -533,9 +533,12 @@ causes_cleaned |>
         )
 ```
 
-## Variable 'VEHICLE_1' y 'VEHICLE_2':
+Se observa como gran porcentaje de accidentes se deben a distracciones. También hay un número considerable de las siguientes causas, pero las causas que tienen una menor frecuencia, apenas tienen accidentes. Esto nos hace pensar en un posible agrupamiento en el futuro usando clusters, para tratar de reducir todas las posibles causas a un número más reducido.
 
-Primero, vamos a ver la frecuencia de las distintos vehículos involucrados en los accidentes registrados. Para ello, vamos a crear una tabla para cada variable con su frecuencia.
+
+## Variables 'VEHICLE_1' y 'VEHICLE_2':
+
+Por ultimo, analizaremos las variables correspondientes al tipo de vehículo primario y secundario implicados en el accidente. De forma similar a la varaible anterior, es una variable categórica, por lo que primero, vamos a ver la frecuencia de las distintos vehículos involucrados en los accidentes registrados. Para ello, vamos a crear una tabla para cada variable con su frecuencia.
 
 ```{r}
 # Frecuencia de la variable VEHICLE_1:
@@ -547,7 +550,6 @@ V1_cleaned <- data_sampled |>
 V2_cleaned <- data_sampled |> 
   count(VEHICLE_2, name = "FREQUENCY_V2") |>  
   arrange(desc(FREQUENCY_V2))
-
 ```
 
 Ahora vamos a graficar los tipos de vehículos y sus frecuencias para *VEHICLE_1* y *VEHICLE_2*. Para ello, vamos a usar un gráfico de barras. Comenzamos con la primera variable:
