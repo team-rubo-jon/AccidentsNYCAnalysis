@@ -129,7 +129,7 @@ ui <- tagList(
                    "Seleccionar vista:",
                    choices = c(
                      "Frecuencia de Accidentes 🚦" = "freq",
-                     "Frecuencia de Accidentes por barrio 🏙️" = "freq_bar",
+                     "Frecuencia de Accidentes por Distrito 🏙️" = "freq_bar",
                      "Heridos vs Muertos 💀 " = "var",
                      "Frecuencia de Causas 🚑" = "causes"
                    ),
@@ -155,8 +155,8 @@ ui <- tagList(
                  
                  conditionalPanel(
                    condition = "input.main_view_viz == 'freq_bar'",
-                   h4("Configuración de Gráficos por Barrio"),
-                   checkboxGroupInput("borough_freq", "Seleccionar Barrio(s):",
+                   h4("Configuración de Gráficos por Distrito"),
+                   checkboxGroupInput("borough_freq", "Seleccionar Distrito(s):",
                                       choices = borough_choices, selected = borough_choices),
                    actionButton("select_all_freq", "Seleccionar Todos"),
                    actionButton("deselect_all_freq", "Deseleccionar Todos"),
@@ -170,7 +170,7 @@ ui <- tagList(
                  conditionalPanel(
                    condition = "input.main_view_viz == 'var' || input.main_view_viz == 'causes'",
                    h4("Configuración de Variables"),
-                   selectInput("borough", "Seleccionar Barrio:",
+                   selectInput("borough", "Seleccionar Distrito:",
                                choices = c("Todos", unique(data_sampled$BOROUGH)), selected = "Todos"),
                    dateRangeInput('date_range_var', 'Filtrar por rango de fechas',
                                   start = min_date, end = max_date,
@@ -197,8 +197,8 @@ ui <- tagList(
                  conditionalPanel(
                    condition = "input.main_view_viz == 'freq_bar'",
                    tabsetPanel(
-                     tabPanel('Distribución por Barrio', plotOutput('accident_borough')),
-                     tabPanel('Evolución por Barrio', plotOutput('accident_evolution'))
+                     tabPanel('Distribución por Distrito', plotOutput('accident_borough')),
+                     tabPanel('Evolución por Distrito', plotOutput('accident_evolution'))
                    )
                  ),
                  
@@ -231,8 +231,8 @@ ui <- tagList(
                    condition = "input.main_view_map == 'hot_map'",
                    h4("Configuración del mapa"),
                    checkboxGroupInput("tipo_usuario", "Víctimas implicadas:",
-                                      choices = c("Sin heridos", "Peatones", "Ciclistas", "Motoristas"),
-                                      selected = c("Sin heridos", "Peatones", "Ciclistas", "Motoristas")),
+                                      choices = c("Incluir heridos", "Peatones", "Ciclistas", "Motoristas"),
+                                      selected = c("Incluir heridos", "Peatones", "Ciclistas", "Motoristas")),
                    selectInput("causa", "Causa del accidente:",
                                choices = c("Todas", unique(data_sampled$CAUSE)), selected = "Todas"),
                    br(),
@@ -474,7 +474,7 @@ server <- function(input, output, session) {
     } else {
       condiciones <- list()
       
-      if ("Sin heridos" %in% input$tipo_usuario) {
+      if ("Incluir heridos" %in% input$tipo_usuario) {
         condiciones[[length(condiciones) + 1]] <- (
           df$NUM_PERSONS_INJURED + df$NUM_PERSONS_KILLED == 0
         )
@@ -682,7 +682,7 @@ server <- function(input, output, session) {
     ggplot(df, aes(x = BOROUGH)) +
       geom_bar(fill = "#1F3B73") +
       geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.5, size = 3) +
-      labs(title = "Distribución de Accidentes por Barrio",
+      labs(title = "Distribución de Accidentes por Distrito",
            x = "Barrio", y = "Número de Accidentes") +
       theme_nyc()
   })
@@ -699,8 +699,8 @@ server <- function(input, output, session) {
     ggplot(df_agg, aes(x = DATE, y = accidents, color = BOROUGH)) +
       geom_line(size = 1.1) +
       geom_point(size = 1.5) +
-      labs(title = "Evolución Temporal de Accidentes por Barrio",
-           x = "Fecha", y = "Número de Accidentes", color = "Barrio") +
+      labs(title = "Evolución Temporal de Accidentes por Distrito",
+           x = "Fecha", y = "Número de Accidentes", color = "Distrito") +
       theme_nyc() +
       scale_color_brewer(palette = "Set1")
   })
@@ -709,7 +709,7 @@ server <- function(input, output, session) {
   # Texto resumen
   output$summary_text <- renderText({
     df <- filtered_data_freq()
-    if (is.null(df)) return("Seleccione al menos un barrio para ver los datos.")
+    if (is.null(df)) return("Seleccione al menos un distrito para ver los datos.")
     
     total <- sum(df$FREQ_DAY, na.rm = TRUE)
     paste("Número total de accidentes en el período seleccionado:", total)
@@ -767,7 +767,7 @@ server <- function(input, output, session) {
     ggplot(df, aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
       geom_bar(stat = "identity", fill = "#1F3B73") + 
       coord_flip() +  # Rota el gráfico para mejor visualización
-      labs(title = paste("Frecuencia de las", input$top_causes, "sausas más comunes"),
+      labs(title = paste("Frecuencia de las", input$top_causes, "causas más comunes"),
            x = "Causa", y = "Frecuencia") +
       theme_nyc() + 
       theme(axis.title = element_text(size = 10),
@@ -865,9 +865,9 @@ server <- function(input, output, session) {
       rect = input$show_rect,
       rect_border = "#1F3B73",
       rect_fill = FALSE,
-      main = "Dendrograma de distritos",
+      main = "Dendrograma de los Distritos",
       cex = 0.7,
-      color_labels_by_k = TRUE
+      color_labels_by_k = TRUE,
     )
     
     p + theme_minimal(base_family = "Roboto Condensed") +
@@ -881,8 +881,6 @@ server <- function(input, output, session) {
         panel.grid.minor = element_blank()
       )
   })
-  
-  
   
   
   output$borough_table <- renderDT({
@@ -953,7 +951,7 @@ server <- function(input, output, session) {
       rect = TRUE,
       rect_fill = TRUE,
       cex = 0.5,
-      main = "Dendrograma de causas",
+      main = "Dendrograma de las Causas",
       xlab = "Causas",
       ylab = "Distancia",
       sub = ""

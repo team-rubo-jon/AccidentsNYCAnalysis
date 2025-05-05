@@ -1,6 +1,12 @@
 ---
-title: "Análisis Exploratorio Datos"
-output: html_document
+title: "NYC Traffic Report"
+author: "Jon Aguas, Fermín Fernandez y Rubén González"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    number_sections: true
 ---
 
 ## Cargar librerías y lectura de datos:
@@ -43,13 +49,13 @@ Jon:
 Rubén:
 
 ```{r}
-#data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
+data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
 ```
 
 Fermin:
 
 ```{r}
-data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+#data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
 # INTRODUCCION
@@ -1071,14 +1077,21 @@ ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
 Una vez eliminadas las variables LONGITUDE y LATITUDE del análisis, se aprecia una pérdida notable en la calidad de la agrupación, los clústeres resultantes no muestran una estructura tan clara como antes. Esto indica que los grupos formados tienen menos coherencia interna y mayor solapamiento entre ellos. En otras palabras, sin la información geográfica precisa que aportaban esas variables, el modelo tiene más dificultades para diferenciar patrones consistentes en los datos. Este resultado confirma que LONGITUDE y LATITUDE eran variables muy influyentes —quizá demasiado— y que, al eliminarlas, se muestra la verdadera dificultad del problema de segmentación.
  
 ## Análisis de correspondencia
+
+Para llevar a cabo el análisis de correspondencias, consideramos interesante estudiar si existía alguna relación entre la hora y el día en que ocurren los accidentes y el resto de variables. Para ello, fue necesario calcular e incorporar al conjunto de datos las variables *HOUR* y *DAY_OF_WEEK*:
+
 ```{r}
 data_sampled <- data_sampled |> 
-  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")))
+  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")),
+         DAY_OF_WEEK = weekdays(as.Date(DATE, format = "%Y-%m-%d")))
+data_sampled$HOUR <- as.factor(data_sampled$HOUR)
+data_sampled$DAY_OF_WEEK <- toupper(data_sampled$DAY_OF_WEEK)
+data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))  # Eliminar los posibles espacios
 ```
 
 ### 1. Tipo de vehiculo y causa:
 
-```{r, fig.width=15}
+```{r, fig.width=10}
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$CAUSE)
 
@@ -1094,7 +1107,7 @@ plot(ca_result)
 
 ### 2. Tipo de vehiculo y hora:
 
-```{r, fig.width=15}
+```{r, fig.width=10}
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$HOUR)
 
@@ -1111,7 +1124,7 @@ plot(ca_result)
 
 ### 3. Causa del accidente y hora:
 
-```{r}
+```{r, fig.width=10}
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$CAUSE, data_sampled$HOUR)
 
@@ -1127,10 +1140,7 @@ plot(ca_result)
 
 ### 4. Causa del accidente y día de la semana: 
 
-```{r}
-# Extraer el día de la semana de la variable TIME
-data_sampled$DAY_OF_WEEK <- weekdays(as.Date(data_sampled$DATE, format = "%Y-%m-%d"))
-
+```{r, fig.width=10}
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$CAUSE, data_sampled$DAY_OF_WEEK)
 
