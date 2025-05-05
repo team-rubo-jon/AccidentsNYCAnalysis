@@ -367,23 +367,36 @@ ui <- navbarPage(
           "main_view_analysis",
           "Seleccionar vista:",
           choices = c(
-            "Análisis Cluster Jerárquico 💠️" = "cluster",
+            "Análisis Cluster Jerárquico (Distritos) 💠️" = "cluster_dis",
+            "Análisis Cluster Jerárquico (Causas) 💠️" = "cluster_cau",
             "Análisis de Correspondencia 👥" = "corresp"
           ),
-          selected = "cluster"
+          selected = "cluster_dis"
         ),
         
-        # Widgets Análisis Jerárquico
+        # Widgets Análisis Jerárquico Distritos
         conditionalPanel(
-          condition = "input.main_view_analysis == 'cluster'",
-          checkboxGroupInput("plot_choices", 
+          condition = "input.main_view_analysis == 'cluster_dis'",
+          checkboxGroupInput("plot_choices_dis", 
                              "Selecciona las opciones para ver:",
                              choices = c("Dendrograma", "Silueta", "Tabla"),
                              selected = c("Dendrograma", "Silueta", "Tabla")),
-          sliderInput("k", 
+          sliderInput("k_dis", 
                       "Número de grupos (k):", 
                       min = 2, max = 4, value = 3),
           checkboxInput("show_rect", "Mostrar rectángulos en el dendrograma", value = TRUE)
+        ),
+        
+        # Widgets Análisis Jerárquico causas
+        conditionalPanel(
+          condition = "input.main_view_analysis == 'cluster_cau'",
+          checkboxGroupInput("plot_choices_cau", 
+                             "Selecciona las opciones para ver:",
+                             choices = c("Dendrograma", "Silueta", "Tabla"),
+                             selected = c("Dendrograma", "Silueta", "Tabla")),
+          sliderInput("k_cau", 
+                      "Número de grupos (k):", 
+                      min = 2, max = 20, value = 8)
         ),
         
         # Widgets Análisis de Correspondencia
@@ -416,20 +429,37 @@ ui <- navbarPage(
       ),
       
       mainPanel(
-        # Panel principal Análisis Jerárquico
+        # Panel principal Análisis Jerárquico Distritos
         conditionalPanel(
-          condition = "input.main_view_analysis == 'cluster'",
+          condition = "input.main_view_analysis == 'cluster_dis'",
           conditionalPanel(
-            condition = "input.plot_choices.indexOf('Dendrograma') > -1",
-            plotOutput("dendrogramPlot", height = "500px")
+            condition = "input.plot_choices_dis.indexOf('Dendrograma') > -1",
+            plotOutput("dendrogram_plot_borough", height = "500px")
           ),
           conditionalPanel(
-            condition = "input.plot_choices.indexOf('Silueta') > -1",
-            plotOutput("silhouettePlot")
+            condition = "input.plot_choices_dis.indexOf('Silueta') > -1",
+            plotOutput("silhouette_plot_borough")
           ),
           conditionalPanel(
-            condition = "input.plot_choices.indexOf('Tabla') > -1",
-            DTOutput("boroughTable")
+            condition = "input.plot_choices_dis.indexOf('Tabla') > -1",
+            DTOutput("borough_table")
+          )
+        ),
+        
+        # Panel principal Análisis Jerárquico Causas
+        conditionalPanel(
+          condition = "input.main_view_analysis == 'cluster_cau'",
+          conditionalPanel(
+            condition = "input.plot_choices_cau.indexOf('Dendrograma') > -1",
+            plotOutput("dendrogram_plot_causes", height = "500px")
+          ),
+          conditionalPanel(
+            condition = "input.plot_choices_cau.indexOf('Silueta') > -1",
+            plotOutput("silhouette_plot_causes")
+          ),
+          conditionalPanel(
+            condition = "input.plot_choices_cau.indexOf('Tabla') > -1",
+            DTOutput("causes_table")
           )
         ),
         
@@ -881,7 +911,7 @@ server <- function(input, output, session) {
   })
   
   
-  # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO:
+  # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO DE DISTRITOS:
   # Reactivo para almacenar los datos del dendrograma
   dend_data <- reactive({
     data_borough_sum <- data_sampled |> 
@@ -905,19 +935,19 @@ server <- function(input, output, session) {
     )
   })
   
-  output$dendrogramPlot <- renderPlot({
+  output$dendrogram_plot_borough <- renderPlot({
     data_list <- dend_data()
     hc <- data_list$hc
     data_borough_sum <- data_list$data
     
     dend <- as.dendrogram(hc)
-    dend <- color_branches(dend, k = input$k)
+    dend <- color_branches(dend, k = input$k_dis)
     dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])
     
     # Dibujar dendrograma con estilo y rectángulos (si se selecciona)
     p <- factoextra::fviz_dend(
       dend,
-      k = input$k,
+      k = input$k_dis,
       horiz = TRUE,
       rect = input$show_rect,
       rect_border = "#1F3B73",
@@ -942,8 +972,8 @@ server <- function(input, output, session) {
   
   
   
-  output$boroughTable <- renderDT({
-    k <- input$k
+  output$borough_table <- renderDT({
+    k <- input$k_dis
     data_list <- dend_data()
     hc <- data_list$hc
     data_borough_sum <- data_list$data
@@ -966,13 +996,13 @@ server <- function(input, output, session) {
     )
   })
   
-  output$silhouettePlot <- renderPlot({
+  output$silhouette_plot_borough <- renderPlot({
     data_list <- dend_data()
     hc <- data_list$hc
     data_borough_sum <- data_list$data
     
     # Obtener el número de clústeres (k) desde la entrada
-    k <- input$k
+    k <- input$k_dis
     
     # Asignar los clústeres usando cutree
     clusters <- cutree(hc, k = k)
@@ -985,6 +1015,101 @@ server <- function(input, output, session) {
       ggtitle(paste("Índice de Silueta para k =", k)) +
       theme_nyc()  # Usar el tema 'ny_theme' también en los gráficos
   })
+  
+  # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO DE CAUSAS:
+  output$dendrogram_plot_causes <- renderPlot({
+    # Calcular matriz de distancias entre nombres de causas con Jaro-Winkler
+    dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
+    rownames(dist_matrix) <- causes_cleaned$CAUSE
+    colnames(dist_matrix) <- causes_cleaned$CAUSE
+    
+    # Cluster jerárquico
+    hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
+    
+    # Dibujar dendrograma con estilo personalizado
+    fviz_dend(
+      x = hc,
+      k = input$k_cau,
+      k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+                   "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"),
+      color_labels_by_k = TRUE,
+      rect = TRUE,
+      rect_fill = TRUE,
+      cex = 0.5,
+      main = "Dendrograma de causas",
+      xlab = "Causas",
+      ylab = "Distancia",
+      sub = ""
+    ) +
+      theme_minimal(base_family = "Roboto Condensed") +
+      theme(
+        plot.background = element_rect(fill = "#F4F4F4", color = NA),
+        panel.background = element_rect(fill = "#F4F4F4", color = NA),
+        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
+        axis.text = element_text(color = "#2E2E2E", size = 9),
+        axis.title = element_text(color = "#2E2E2E", size = 11),
+        panel.grid.major = element_line(color = "#CCCCCC"),
+        panel.grid.minor = element_blank()
+      )
+  })
+  
+  output$silhouette_plot_causes <- renderPlot({
+    # Calcular distancia y clustering
+    dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
+    rownames(dist_matrix) <- causes_cleaned$CAUSE
+    colnames(dist_matrix) <- causes_cleaned$CAUSE
+    hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
+    
+    k <- input$k_cau
+    clusters <- cutree(hc, k = k)
+    
+    # Calcular silueta
+    sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+    
+    # Graficar con estilo personalizado
+    fviz_silhouette(sil) +
+      ggtitle(paste("Índice de Silueta para k =", k)) +
+      theme_minimal(base_family = "Roboto Condensed") +
+      theme(
+        plot.background = element_rect(fill = "#F4F4F4", color = NA),
+        panel.background = element_rect(fill = "#F4F4F4", color = NA),
+        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
+        axis.text = element_text(color = "#2E2E2E", size = 10),
+        axis.title = element_text(color = "#2E2E2E", size = 11),
+        panel.grid.major = element_line(color = "#CCCCCC"),
+        panel.grid.minor = element_blank()
+      )
+  })
+  
+  
+  output$causes_table <- renderDT({
+    # Distancia y clustering
+    dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
+    rownames(dist_matrix) <- causes_cleaned$CAUSE
+    colnames(dist_matrix) <- causes_cleaned$CAUSE
+    hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
+    
+    # Asignar grupos (k = 8 fijo o podrías usar input$k_causas)
+    k <- input$k_cau
+    clusters <- cutree(hc, k = k)
+    
+    # Crear tabla con grupo asignado
+    causes_clustered <- data.frame(
+      CAUSA = causes_cleaned$CAUSE,
+      Grupo = as.factor(clusters)
+    ) |> 
+      arrange(Grupo)
+    
+    datatable(
+      causes_clustered,
+      options = list(
+        dom = 't',
+        pageLength = nrow(causes_clustered)
+      ),
+      rownames = FALSE
+    )
+  })
+  
   
   # ELEMENTOS PARA EL ANÁLISIS DE CORRESPONDENCIA
   

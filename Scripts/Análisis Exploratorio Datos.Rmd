@@ -36,7 +36,7 @@ library(pROC)
 Jon:
 
 ```{r}
-#data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
+data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
 Rubén:
@@ -48,7 +48,7 @@ Rubén:
 Fermin:
 
 ```{r}
-data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+# data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
 # INTRODUCCION
@@ -1102,165 +1102,37 @@ plot(ca_result)
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
 ### Variable 'CAUSE'
-
-#### Prueba 1
-
-Vamos a realizar una clusterización de los diferentes factores contribuyentes al accidente. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
-
-```{r}
-cause_norm <- causes_cleaned |>
-  mutate(FREQUENCY_NORM = scale(FREQUENCY)) |>
-  dplyr::select(CAUSE, FREQUENCY_NORM)
-
-rownames(cause_norm) <- cause_norm$CAUSE
-cause_norm <- cause_norm |> 
-  dplyr::select(-CAUSE)
-
-fviz_nbclust(x = cause_norm, 
-             FUNcluster = kmeans, 
-             method = "wss", 
-             k.max = 15, 
-             nstart = 50) +
-  labs(title = "Número óptimo de clusters (WSS)")
-
-```
-
-```{r, warning=FALSE, message=FALSE}
-
-pam_clusters <- pam(x = cause_norm, k = 4, metric = "manhattan")
-
-# Visualizar con fviz_cluster usando dos dimensiones
-# fviz_cluster(pam_clusters, 
-#              data = cause_norm,
-#              show.clust.cent = TRUE, 
-#              ellipse.type = "euclid",
-#              star.plot = TRUE, 
-#              repel = TRUE) +
-#   labs(title = "Resultados clustering K-means (CAUSE)") +
-#   theme_bw() + 
-#   theme(legend.position = "none")
-
-
-resultados <- data.frame(ciudad = names(pam_clusters$cluster), cluster = as.factor(pam_clusters$cluster)) |> 
-    arrange(cluster)
-
-datos_graph <- graph_from_data_frame(d = resultados, directed = TRUE)
-datos_graph <- as_tbl_graph(datos_graph)
-
-# Se añade información sobre a que cluster pertenece cada observacion
-datos_graph <- datos_graph |> 
-    activate(nodes) |> 
-    left_join(resultados, by = c(name = "ciudad"))
-
-ggraph(graph = datos_graph) + 
-  geom_edge_link(alpha = 0.5) + 
-  geom_node_point(aes(color = cluster)) +
-  geom_node_text(aes(label = name), repel = TRUE, alpha = 0.5, size = 3) + 
-  labs(title = "Resultados clustering K-means") +
-  theme_graph()
-
-```
-
-#### Prueba 2
-
-Rpealizar PCA con otro tio de metricas.
-
-1.  Crear una matriz de características para cada causa
-
-```{r}
-
-# Ejemplo: sumar heridos y muertos promedio por causa
-cause_features <- data_sampled |> 
-  group_by(CAUSE) |> 
-  summarise(
-    N = n(),
-    avg_injured = mean(NUM_PERSONS_INJURED, na.rm = TRUE),
-    avg_killed = mean(NUM_PERSONS_KILLED, na.rm = TRUE),
-    # avg_cyclist_injured = mean(NUM_CYCLIST_INJURED, na.rm = TRUE),
-    # avg_motorist_injured = mean(NUM_MOTORIST_INJURED, na.rm = TRUE),
-    # avg_pedestrian_injured = mean(NUM_PEDESTRIANS_INJURED, na.rm = TRUE)
-  ) |> 
-  ungroup()
-
-```
-
-2.  Normalizar los datos y aplicar PCA
-
-```{r}
-# Normalizar
-cause_features_scaled <- cause_features |> 
-  column_to_rownames("CAUSE") |> 
-  scale()
-
-# PCA
-pca_res <- prcomp(cause_features_scaled, center = TRUE, scale. = TRUE)
-biplot(pca_res, main = "PCA de las causas")
-
-ggbiplot(pca_res, choices = c(1,2))
-```
-
-3.  Clustering
-
-```{r}
-# Determinar número de clusters óptimo
-fviz_nbclust(cause_features_scaled, kmeans, method = "wss")
-
-# K-means clustering
-set.seed(123)
-km <- kmeans(cause_features_scaled, centers = 7, nstart = 50)
-
-# Visualizar clusters
-fviz_cluster(km, data = cause_features_scaled, 
-             show.clust.cent = TRUE, 
-             repel = TRUE) +
-  theme_minimal() +
-  labs(title = "Clustering de causas de accidente")
-```
 
 #### Prueba 3
 
-Establecer similitudes entre los nombres de las causas.
+Vamos a realizar una clusterización de los diferentes factores contribuyentes al accidente. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
+
+Establecemos similitudes entre los nombres de las causas, mediante una matriz de distancias que representa la distancia entre las diferentes causas según su similitud.
+
 
 ```{r}
 # Crear matriz de distancias entre nombres de causas
-dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")  # método Jaro-Winkler, o "lv" para Levenshtein
+dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")  
+
+# método Jaro-Winkler, o "lv" para Levenshtein
 rownames(dist_matrix) <- causes_cleaned$CAUSE
 colnames(dist_matrix) <- causes_cleaned$CAUSE
 ```
+
 
 Clustering jerarquico
 
 ```{r, warning=FALSE}
 hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
-plot(hc, main = "Dendograma de Causas", cex = 0.7)
 
+k <- 8
 
-fviz_dend(x = hc, cex = 0.5, main = "Dendrograma - ward", xlab = "observaciones",
-    ylab = "distancia", sub = "", horiz = TRUE)
-
-```
-
-Cortar endograma
-
-```{r, warning=FALSE}
 fviz_dend(x = hc,
-          k = 8,
+          k = k,
           k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
           color_labels_by_k = TRUE,
           rect = TRUE,
-          #rect_border = c("#2E9FDF", "#00AFBB", "#E7B800", "#FC4E07"),
           rect_fill = TRUE,
           cex = 0.5,
           main = "Dendrograma - ward",
@@ -1268,47 +1140,33 @@ fviz_dend(x = hc,
           ylab = "distancia",
           sub = "")
 
-fviz_dend(x = hc, k = 8, k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
-    color_labels_by_k = TRUE, cex = 0.5, type = "circular")
+```
+Para un valor de k = 8, es decir, agrupar las causas en 8 grupos, se pueden observar cosas interesantes. En primer lugar, hemos conseguido reducir el número de causas de 52 a 8, lo que nos permite simplificar el análisis. Además, hemos agrupado causas similares entre sí, lo que nos permite ver patrones en los datos. Por ejemplo, el grupo 2 (naranja), prácticamente todas son debido a un defecto, ya sea en el pavimento, los frenos... En general, en todos los grupos hay causas relacionadas.
 
+Vamos a graficar las siluetas para ver que tal realiza la clusterización:
+
+```{r, warning=FALSE}
+clusters <- cutree(hc, k = k)
+
+# Calcular silueta
+sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+
+# Graficar con estilo personalizado
+fviz_silhouette(sil) +
+  ggtitle(paste("Índice de Silueta para k =", k)) +
+  theme_minimal(base_family = "Roboto Condensed") +
+  theme(
+    plot.background = element_rect(fill = "#F4F4F4", color = NA),
+    panel.background = element_rect(fill = "#F4F4F4", color = NA),
+    plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
+    axis.text = element_text(color = "#2E2E2E", size = 10),
+    axis.title = element_text(color = "#2E2E2E", size = 11),
+    panel.grid.major = element_line(color = "#CCCCCC"),
+    panel.grid.minor = element_blank()
+  )
 ```
 
-Ahora vamos a agrupar las causas en los 8 grupos
+Seguún este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
 
-```{r}
-# Asignar cada causa a uno de los 8 clusters
-grupo_causas <- cutree(hc, k = 8)
-
-# Crear data frame con causa original y grupo asignado
-causas_grupo <- data.frame(
-  CAUSE = names(grupo_causas),
-  GRUPO_CAUSA = grupo_causas
-)
-
-# unimos al dataframe original
-data_sampled <- data_sampled |> 
-  left_join(causas_grupo, by = "CAUSE")
-
-
-```
-
-## Analisis discriminante
-
-```{r}
-data_sampled$BOROUGH_NUM <- as.numeric(factor(data_sampled$BOROUGH))
-
-modelo_lda <- lda(formula = GRUPO_CAUSA ~ NUM_PERSONS_INJURED + NUM_PERSONS_KILLED + BOROUGH_NUM, data = data_sampled)
-
-new_data <- data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PERSONS_KILLED", "BOROUGH_NUM")]
-
-predicciones <- predict(object = modelo_lda, 
-                        newdata = data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PERSONS_KILLED", "NUM_PEDESTRIANS_INJURED", "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_INJURED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_INJURED", "NUM_MOTORIST_KILLED", "BOROUGH_NUM")], 
-                        method = "predictive")
-
-table(data_sampled$GRUPO_CAUSA, predicciones$class, dnn = c("Clase real", "Clase predicha"))
-
-```
-
-Igual no tiene mucho sentido, predice casi siempre el 1.
 
 # CONCLUSIONES
