@@ -241,57 +241,124 @@ data_sampled <- read.csv("data_sampled.csv")
 
 Una vez obtenido el dataset con el que trabajaremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas.
 
-## Frecuencia en distintos intervalos de tiempo:
+Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
 
-*CAMBIAR ESTILO GRAFICOS COMO EN LA APP*
+Antes de empezar con las visualizaciones, vamos a crear un tema personalizado para los gráficos que vamos a mostrar. De esta manera, todos los gráficos tendrán el mismo estilo y será más fácil de leer.
+
+## Tema personalizado
 
 ```{r}
+# Tema personalizado para gráficos
+theme_nyc <- function() {
+  theme_minimal(base_family = "Roboto Condensed") +
+    theme(
+      plot.background = element_rect(fill = "#F4F4F4", color = NA),
+      panel.background = element_rect(fill = "#F4F4F4", color = NA),
+      panel.grid.major = element_line(color = "#DADADA"),
+      panel.grid.minor = element_blank(),
+      axis.title = element_text(color = "#2E2E2E", face = "bold"),
+      axis.text = element_text(color = "#2E2E2E"),
+      plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(color = "#2E2E2E", hjust = 0.5),
+      legend.background = element_rect(fill = "#F4F4F4"),
+      legend.key = element_rect(fill = "#F4F4F4"),
+      legend.text = element_text(color = "#2E2E2E"),
+      strip.background = element_rect(fill = "#FFD100"),
+      strip.text = element_text(color = "#2E2E2E", face = "bold")
+    )
+}
+```
+
+
+## Variables 'DATE':
+
+Vamos a hacer una representación dual, en la que combinamos el gráfico de barras y el gráfico de líneas, para mostrar la frecuencia de accidentes según el mes o año. Para ello, vamos a crear una nueva variable que contenga la fecha en formato mes y otra en año.
+
+```{r, warning=FALSE}
+data_time <- data_sampled |>
+  mutate(DATE = as.Date(DATE, format = "%Y-%m-%d")) |>
+  mutate(DATE_MONTH = yearmonth(DATE),
+         DATE_YEAR = year(DATE)) |>
+  add_count(DATE, name = "FREQ_DAY") |>
+  add_count(DATE_MONTH, name = "FREQ_MONTH") |>
+  add_count(DATE_YEAR, name = "FREQ_YEAR") |>
+  dplyr::select(DATE, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR, BOROUGH) |>
+  arrange(DATE)
+
+
+# Frecuendia de datos mensuales
+data_time |> 
+  group_by(DATE_MONTH) |>
+  summarise(FREQ = sum(FREQ_MONTH, na.rm = TRUE), .groups = "drop") |>
+    ggplot(aes(x = DATE_MONTH, y = FREQ)) +
+    geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.8) +
+    geom_line(color = "#1F3B73", size = 1.2) +
+    geom_point(color = "#FF4C4C", size = 2) +
+    labs(title = "Frecuencia de Accidentes por Mes", x = "Fecha", y = "Frecuencia") +
+    theme_nyc()
+
+# Frecuendia de datos mensuales
+data_time |> 
+  group_by(DATE_YEAR) |>
+  summarise(FREQ = sum(FREQ_YEAR, na.rm = TRUE), .groups = "drop") |>
+    ggplot(aes(x = DATE_YEAR, y = FREQ)) +
+    geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.8) +
+    geom_line(color = "#1F3B73", size = 1.2) +
+    geom_point(color = "#FF4C4C", size = 2) +
+    labs(title = "Frecuencia de Accidentes por Año", x = "Fecha", y = "Frecuencia") +
+    theme_nyc()
+  
+
+```
+
+En estos gráficos observamos como ha ido evolucionando la frecuencia de accidentes a lo largo del tiempo, ya sea con datos acumulados mensuales o anuales. Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
+
+También, vamos a representar la frecuencia total de cada mes.
+
+```{r, warning=FALSE}
 data_time |> 
   group_by(DATE_MONTH) |> 
   summarise(FREQ_MONTH = sum(FREQ_MONTH)) |> 
   mutate(MONTH = month(DATE_MONTH, label = TRUE)) |> 
   ggplot(aes(x = MONTH, y = FREQ_MONTH)) + 
-  geom_bar(stat = "identity", fill = "steelblue") + 
-  labs(title = "Frecuencia de Accidentes por Mes",
-       x = "Mes",
-       y = "Frecuencia") +
-  theme_minimal()
-
-data_time |>
-  ggplot(aes(x = DATE_MONTH, y = FREQ_MONTH)) + 
-  geom_line(color = "steelblue") + 
-  labs(title = "Evolución de frecuencia de accidentes mensualmente",
-       x = "Mes",
-       y = "Frecuencia") +
-  theme_minimal()
-
-data_time |>
-  ggplot(aes(x = DATE_YEAR, y = FREQ_YEAR)) + 
-  geom_line(color = "steelblue") + 
-  labs(title = "Frecuencia de Accidentes por Año",
-       x = "Año",
-       y = "Frecuencia") +
-  theme_minimal()
-
+    geom_histogram(stat = "identity", fill = "#1F3B73") +
+    labs(title = "Frecuencia de Accidentes por Mes", x = "Fecha", y = "Frecuencia") +
+    theme_nyc()
 ```
-En el primer gráfico observamos cuales son los meses que máyor frecuencia de accidentes tienen. Observamos como a principios de verano es cuando más alta es la frecuencia (mayo, junio y julio) tal vez porque la gente se mueve más por el buen tiempo, pero aún teniendo que ir a trabajar. En agosto y septiembre se reduce la frecuencia, tal vez por el efecto de las vacaciones. Por otra parte, sin duda los meses de febrero (por tener 29 días) y abril (tal vez por ser el mes en el que más afecto el confinamiento de 2020) son los que menor frecuencia de accidentes tienen.
 
+En este gráfico observamos cuales son los meses que máyor frecuencia de accidentes tienen. Observamos como a principios de verano es cuando más alta es la frecuencia (mayo, junio y julio) tal vez porque la gente se mueve más por el buen tiempo, pero aún teniendo que ir a trabajar. En agosto y septiembre se reduce la frecuencia, tal vez por el efecto de las vacaciones. Por otra parte, sin duda los meses de febrero (por tener 29 días) y abril (tal vez por ser el mes en el que más afecto el confinamiento de 2020) son los que menor frecuencia de accidentes tienen.
 
-En el segundo y tercer gráfico observamos como ha ido evolucionando la frecuencia de accidentes a lo largo del tiempo, ya sea con datos acumulados mensuales o anuales. Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
 
 ## Variable 'BOROUGH':
 
+
 ```{r, warning=FALSE}
+# Mostramos el histograma de los barrios, además del box plot:
 data_sampled |> 
   ggplot(aes(x = BOROUGH)) +
-  geom_histogram(stat = "count", fill = "steelblue") +
+  geom_bar(fill = "#1F3B73") +
+  geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.5, size = 3) +
   labs(title = "Distribución de Accidentes por Distrito",
-       x = "Distrito",
-       y = "Número de Accidentes")
+       x = "Barrio", y = "Número de Accidentes") +
+  theme_nyc()
 
 ```
 
-*METER LA SERIE TEMPORAL Y AÑADIR ALGÚN COMENTARIO EN RELACIÓN A LO QUE VEMOS EN LAS GRÁFICAS*
+Ahora vamos a crear una serie temporal por cada distrito, de tal forma que podamos comparar entre ellos según la fecha.
+
+```{r, warning=FALSE}
+data_time |>
+  group_by(DATE = floor_date(DATE, "month"), BOROUGH) |>
+  summarise(accidents = sum(FREQ_DAY, na.rm = TRUE), .groups = "drop") |> 
+  ggplot(aes(x = DATE, y = accidents, color = BOROUGH)) +
+    geom_line(size = 1.1) +
+    geom_point(size = 1.5) +
+    labs(title = "Evolución Temporal de Accidentes por Barrio",
+         x = "Fecha", y = "Número de Accidentes", color = "Barrio") +
+    theme_nyc() +
+    scale_color_brewer(palette = "Set1") +
+    theme(legend.position = "bottom")
+```
 
 ## Variables 'LATITUDE' y 'LONGITUDE:
 
