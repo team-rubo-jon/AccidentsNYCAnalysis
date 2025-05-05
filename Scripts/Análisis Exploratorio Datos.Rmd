@@ -25,6 +25,7 @@ library(igraph)
 library(tidygraph)
 library(ggraph)
 library(pROC)
+library(patchwork)
 ```
 
 ```{r}
@@ -217,7 +218,7 @@ data_cleaned$CAUSE <- toupper(data_cleaned$CAUSE)
 
 ## Muestreo:
 
-Una vez eliminados los individuos que no son de interes, el dataset se reduce a 893275 filas. Es más manejable pero seguimos teniendo demasiadas observaciones, por lo que para trabajar con los datos de forma más comoda hemos decidido hacer un muestreo de 20.000 observaciones
+Una vez eliminados los individuos que no son de interes, el dataset se reduce a 888068 filas. Seguimos teniendo demasiadas observaciones, por lo que para trabajar con los datos de forma más comoda hemos decidido hacer un muestreo de 20.000 observaciones. Cabe destacar que si bien para tener los mismos resultados fijamos una semilla, durante el trabajo en ciertos analisis hemos tomado muestras diferentes para asegurarnos de que los resultados eran similares y no había demasiada variación debido a la muestra.
 
 ```{r}
 set.seed(123)
@@ -247,10 +248,11 @@ Antes de empezar con las visualizaciones, vamos a crear un tema personalizado pa
 
 ## Tema personalizado
 
+Tanto en el informe como en la app, hemos definido un tema personalizado con colores característicos de Nueva York y particularmente los vehiculos, en el que destaca la presencia del amarillo color Taxi, y los grises del asfalto para dar contraste.
+
 ```{r}
-# Tema personalizado para gráficos
 theme_nyc <- function() {
-  theme_minimal(base_family = "Roboto Condensed") +
+  theme_minimal(base_family = "Arial") +
     theme(
       plot.background = element_rect(fill = "#F4F4F4", color = NA),
       panel.background = element_rect(fill = "#F4F4F4", color = NA),
@@ -270,7 +272,7 @@ theme_nyc <- function() {
 ```
 
 
-## Variables 'DATE':
+## Variable 'DATE':
 
 Vamos a hacer una representación dual, en la que combinamos el gráfico de barras y el gráfico de líneas, para mostrar la frecuencia de accidentes según el mes o año. Para ello, vamos a crear una nueva variable que contenga la fecha en formato mes y otra en año.
 
@@ -313,7 +315,8 @@ data_time |>
 
 En estos gráficos observamos como ha ido evolucionando la frecuencia de accidentes a lo largo del tiempo, ya sea con datos acumulados mensuales o anuales. Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
 
-También, vamos a representar la frecuencia total de cada mes.
+
+A continuación, vamos a representar la frecuencia total acumulada por cada mes. Es decir, la suma de frecuencia para cada uno de los meses en todos los años pasados:
 
 ```{r, warning=FALSE}
 data_time |> 
@@ -321,19 +324,18 @@ data_time |>
   summarise(FREQ_MONTH = sum(FREQ_MONTH)) |> 
   mutate(MONTH = month(DATE_MONTH, label = TRUE)) |> 
   ggplot(aes(x = MONTH, y = FREQ_MONTH)) + 
-    geom_histogram(stat = "identity", fill = "#1F3B73") +
-    labs(title = "Frecuencia de Accidentes por Mes", x = "Fecha", y = "Frecuencia") +
+    geom_histogram(stat = "identity", fill = "#1F3B73", alpha = 0.8) +
+    labs(title = "Frecuencia de accidentes acumulada por mes", x = "Fecha", y = "Frecuencia") +
     theme_nyc()
 ```
-
 En este gráfico observamos cuales son los meses que máyor frecuencia de accidentes tienen. Observamos como a principios de verano es cuando más alta es la frecuencia (mayo, junio y julio) tal vez porque la gente se mueve más por el buen tiempo, pero aún teniendo que ir a trabajar. En agosto y septiembre se reduce la frecuencia, tal vez por el efecto de las vacaciones. Por otra parte, sin duda los meses de febrero (por tener 29 días) y abril (tal vez por ser el mes en el que más afecto el confinamiento de 2020) son los que menor frecuencia de accidentes tienen.
 
 
 ## Variable 'BOROUGH':
 
+En el siguiente apartado, vamos a tratar de ver la distribución de los accidentes por barrio, y su evolución con el paso del tiempo:
 
 ```{r, warning=FALSE}
-# Mostramos el histograma de los barrios, además del box plot:
 data_sampled |> 
   ggplot(aes(x = BOROUGH)) +
   geom_bar(fill = "#1F3B73") +
@@ -343,8 +345,10 @@ data_sampled |>
   theme_nyc()
 
 ```
+Observamos como Brooklyn Queens y Manhattan acumulan el mayor número de accidentes. Esto concuerda con que son los barrios más grandes y céntricos de Nueva York. Se observa como Bronx y State Island muestran una frecuencia mucho más inferior, ya que son barrios periféricos.
 
-Ahora vamos a crear una serie temporal por cada distrito, de tal forma que podamos comparar entre ellos según la fecha.
+
+Vamos a ver la evolución de la frecuencia de accidentes por cada barrio:
 
 ```{r, warning=FALSE}
 data_time |>
@@ -359,13 +363,14 @@ data_time |>
     scale_color_brewer(palette = "Set1") +
     theme(legend.position = "bottom")
 ```
+Aqui observamos el mismo patrón de frecuencia que hemos analizado anteriormente, donde baja drásticamente a partir del covid. Además, parece que el comportamiento de todos los barrios es similar, y aumentan o disminuyen de manera correlacionada. También parece que el barrio Bronx no disminuye tanto la frecuencia a partir de 2020, mostrándose por encima de manhattan varias veces.También podemos observar como Manhattan era el barrio con mayor frecuencia hasta 2016, y desde 2017 hasta 2020 cede ese puesto a Brooklyn y Queens.
 
-## Variables 'LATITUDE' y 'LONGITUDE:
 
-*METER LOS MAPAS DE MINTXO Y AÑADIR ALGÚN COMENTARIO EN RELACIÓN A LO QUE VEMOS EN LAS GRÁFICAS*
+## Variables 'LATITUDE' y 'LONGITUDE':
 
-Para el caso de latitude y longitude, vamos a mostrar un mapa con la localización de los accidentes en el mapa de Nueva York. Para ello, vamos a usar la librería leaflet, que nos permite mostrar mapas interactivos.
+En cuanto a las variables de Localización, al ser un dataset con datos geográficos uno de los análisis importantes que debemos hacer es situando los accidentes en su ubicación correspondiente. Esto nos permite ver como están distrubuidos en la ciudad los accidentes.
 
+En primer lugar, representaremos cada accidente mediante un punto rojo:
 ```{r, results='asis', echo=FALSE}
 data_sampled |> 
   leaflet() |> 
@@ -381,61 +386,115 @@ data_sampled |>
   )
 ```
 
+Observamos como prácticamente la totalidad del mapa queda cubierta de punto rojos, si bien es cierto que en barrios como Staten Island se aprecia menos densidad, tal y como intuíamos de los histogramas realizados previamente.
+
+Para tratar de ver algo más claro, vamos a representar un mapa de calor, en el que las zonas más calientes representan aquellos accidentes en los que ha habido heridos o fallecidos (que ponderan de forma más significativa):
+
+```{r}
+leaflet(data_sampled) %>%
+  addTiles() %>%
+  setView(lng = -73.9, lat = 40.7128, zoom = 10) %>%
+  addHeatmap(
+    lng = ~LONGITUDE,
+    lat = ~LATITUDE,
+    intensity = ~ 5*NUM_PERSONS_KILLED + NUM_PERSONS_INJURED,
+    radius = 15,
+    blur = 20,
+    max = 0.05,
+    group = "heat"
+  )
+```
+
+Este mapa ya nos proporciona información más interesante. Por un lado, podemos observar como aunque muchos accidentes se producen en Manhattan, no corresponde con una alta densidad de heridos o fallecidos como podría esperarse. esto se debe tal vez a que los accidentes son en ciudad a una baja velocidad.Sin embargo, en barrios como Staten Island observamos una amyor densidad de accidentes con heridos, pese a que era una de las zonas con menor frecuencia de accidentes.
+
+En la aplicación hemos desarrollado los mapas de forma interactiva, pudiendo aplicar diferentes filtros y intervalos de tiempo variables, para poder ver de una forma más clara y dinámica la evolución de los accidentes a lo largo del
+
+
 ## Variables de Conteo de Personas Afectadas:
 
 Ahora, podemos comprobar el número de peatones, ciclistas y motoristas que han resultado heridos o muertos en los accidentes, junto al total de heridos y muertos:
 
-```{r, fig.width=15}
-# 1. Crear un resumen total
-datos_resumen <- data_sampled |> 
-  summarise(
-    Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
-    Heridos_Pedestrians = sum(NUM_PEDESTRIANS_INJURED, na.rm = TRUE),
-    Heridos_Cyclists = sum(NUM_CYCLIST_INJURED, na.rm = TRUE),
-    Heridos_Motorists = sum(NUM_MOTORIST_INJURED, na.rm = TRUE),
-    Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE),
-    Muertos_Pedestrians = sum(NUM_PEDESTRIANS_KILLED, na.rm = TRUE),
-    Muertos_Cyclists = sum(NUM_CYCLIST_KILLED, na.rm = TRUE),
-    Muertos_Motorists = sum(NUM_MOTORIST_KILLED, na.rm = TRUE)
-  )
-
-# 2. Pasar a formato largo
-datos_long <- datos_resumen |> 
-  pivot_longer(cols = everything(),
-               names_to = c("Estado", "Tipo"),
-               names_sep = "_",
-               values_to = "Total")
-
-# 3. Gráfico separado por estado (herido/muerto)
-datos_long |> 
-ggplot(aes(x = Tipo, y = Total, fill = Tipo)) +
-  geom_col(show.legend = TRUE) +  # Activamos la leyenda
-  geom_text(aes(label = Total), vjust = -0.5, size = 4) +
-  facet_wrap(~Estado, scales = "free_y") +
-  labs(
-    title = "Total de personas heridas y muertas por tipo",
-    x = NULL,  # Quitamos la etiqueta del eje x
-    y = "Total",
-    fill = "Tipo de persona"  # Título de la leyenda
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_blank(),       # Oculta los nombres debajo de las barras
-    axis.ticks.x = element_blank(),      # Oculta las marcas del eje x
-    legend.position = "bottom"           # Posiciona la leyenda debajo del gráfico
-  )
+```{r, fig.width=15, warning=FALSE}
+    datos_resumen <- data_sampled |> 
+      summarise(
+        Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+        Heridos_Pedestrians = sum(NUM_PEDESTRIANS_INJURED, na.rm = TRUE),
+        Heridos_Cyclists = sum(NUM_CYCLIST_INJURED, na.rm = TRUE),
+        Heridos_Motorists = sum(NUM_MOTORIST_INJURED, na.rm = TRUE),
+        Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE),
+        Muertos_Pedestrians = sum(NUM_PEDESTRIANS_KILLED, na.rm = TRUE),
+        Muertos_Cyclists = sum(NUM_CYCLIST_KILLED, na.rm = TRUE),
+        Muertos_Motorists = sum(NUM_MOTORIST_KILLED, na.rm = TRUE)
+      )
+    
+    datos_long <- datos_resumen |> 
+      pivot_longer(cols = everything(),
+                   names_to = c("Estado", "Tipo"),
+                   names_sep = "_",
+                   values_to = "Total")
+    
+    ggplot(datos_long, aes(x = Tipo, y = Total, fill = Tipo)) +
+      geom_col(show.legend = TRUE) +
+      geom_text(aes(label = Total), vjust = -0.5, size = 4, color = "#2E2E2E") +
+      facet_wrap(~Estado, scales = "free_y") +
+      labs(
+        title = "Total de personas heridas y muertas por tipo",
+        x = NULL,
+        y = "Total",
+        fill = "Tipo de persona"
+      ) +
+      theme_nyc() +
+      theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom"
+      )
 ```
 
-Veamos ahora la matriz de correlación:
+En este gráfico observamos que en general, la frecuencia de heridos es mucho mayor respecto a fallecidos (6472 frente a 23). También observamos que el grupo más vulnerable son los motoristas, tanto en cuanto a heridos como a fallecidos se refiere. Seguidos de los peatones y ciclistas. Si bien, considerando que el número de ciclistas es muy inferior al de peatones, y apenas son la mitad de heridos, tal vez podríamos decir que ser ciclista si que conlleva un mayor riesgo de resultar herido en proporción.
 
-```{r, fig.width=15, message=FALSE}
-ggpairs(data_sampled, columns = c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED", "NUM_PERSONS_KILLED", "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED"), 
-        title = "Matriz de Correlación entre Variables")
+
+Además, pese a ser variables enteras como son numéricas, puede ser interesante mostrar un histograma de cada una de ellas para ver si hay normalidad en los datos.:
+```{r, fig.width=15, message=FALSE, warning=FALSE}
+vars <- c(
+  "NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED",
+  "NUM_PERSONS_KILLED", "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED"
+)
+
+hist_list <- lapply(vars, function(var) {
+  ggplot(data_sampled, aes_string(x = var)) +
+    geom_histogram(bins = 30, fill = "#1F77B4", color = "white") +
+    labs(title = var, x = NULL, y = NULL) +
+    theme_nyc()
+})
+
+wrap_plots(hist_list, ncol = 4)
 ```
+Observamos como la distribución en todas las variables llega al máximo en el 0, y va reduciéndose drásticamente. Lo cual es comprensible ya que se trata del número de personas heridas en accidentes, y en los accidentes leves no suele haber ningún herido.
 
-En conclusión, la matriz de correlaciones muestra relaciones fuertes entre variables agregadas y sus subcomponentes, como entre personas heridas y motoristas heridos, lo cual es esperable y refleja coherencia en los datos; sin embargo, la mayoría de las demás correlaciones entre heridos y fallecidos de distintos grupos (peatones, ciclistas, motoristas) son débiles o prácticamente nulas, lo que sugiere que estas variables afectan a poblaciones distintas y no presentan multicolinealidad significativa.
+Esto nos indica que no tenemos normalidad, lo cual habrá que tenerlo en cuenta a la hora de aplicar diferentes técnicas.
 
-Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
+
+En el siguiente apartado, veremos la matriz de correlaciones entre todas las variables de conteo de personas afectadas. Como no tenemos normalidad, aplicaremos la matriz de correlaciones de Spearman:
+```{r, fig.width=15, message=FALSE, warning=FALSE}
+data_short <- data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED", "NUM_PERSONS_KILLED",   "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED")]
+
+
+colnames(data_short) <- c("Total Her.", "Peatones Her.", "Ciclistas Her.", "Motoristas Her.", "Total Fall.", "Peatones Fall.", "Ciclistas Fall.", "Motoristas Fall.")
+
+ggpairs(
+  data_short,
+  title = "Matriz de correlaciones Spearman",
+  upper = list(continuous = wrap("cor", size = 4, method = "spearman")),
+  lower = list(continuous = wrap("points", alpha = 0.5)),
+  diag = list(continuous = wrap("densityDiag"))
+) +
+  theme_nyc()
+```
+En conclusión, la matriz de correlaciones solamente muestra relaciones fuertes entre variables agregadas y sus subcomponentes, como entre personas heridas y motoristas heridos (ya que dentro de personas heridas están los motoristas, y además hemos visto que es el tipo que más contribuye). Sin embargo esta correlación es evidente, y no aporta ninguna información de valor.
+
+En cuanto a las variables por separado sin datos repetidos, ninguna muestra correlación significativa con las demás, lo cual sugiere que no se comportan del mismo modo los tipos diferentes de implicados, y que no podemos explicar el número de heridos/fallecidos de ningún tipo basandónos en otro de los tipos.
+
 
 ## Variable 'CAUSE':
 
