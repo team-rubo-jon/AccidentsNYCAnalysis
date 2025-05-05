@@ -5,7 +5,7 @@ output: html_document
 
 ## Cargar librerías y lectura de datos:
 
-```{r, message=FALSE}
+```{r, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(viridis)
 library(leaflet)
@@ -168,7 +168,7 @@ filas_erroneas <- data_cleaned |>
   dplyr::select(ROW_ID, NUM_PERSONS_INJURED, TOTAL_NUMBER_INJURED, NUM_PERSONS_KILLED, TOTAL_NUMBER_KILLED) |> 
   filter(NUM_PERSONS_INJURED != TOTAL_NUMBER_INJURED | NUM_PERSONS_KILLED != TOTAL_NUMBER_KILLED)
 
-filas_erroneas
+head(filas_erroneas)
 ```
 
 Podemos ver como existen filas que no cumplen, por ello eliminamos las filas erroneas, aquellas filas cuyo numero de personas heridas o fallecidas no coincide con el total de heridos o fallecidos que se han dado en la fila.
@@ -241,60 +241,11 @@ data_sampled <- read.csv("data_sampled.csv")
 
 Una vez obtenido el dataset con el que trabajaremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas.
 
-Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
+## Frecuencia en distintos intervalos de tiempo:
 
-## Variables 'DATE' y 'TIME':
-
-```{r}
-data_time <- data_sampled |> 
-  mutate(DATE_MONTH = yearmonth(DATE),
-         DATE_YEAR = year(DATE)) |> 
-  add_count(DATE, name = "FREQ_DAY") |> 
-  add_count(DATE_MONTH, name = "FREQ_MONTH") |> 
-  add_count(DATE_YEAR, name = "FREQ_YEAR") |>
-  dplyr::select(DATE, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR) |> 
-  arrange(DATE)
-  
-
-data_time |>
-  ggplot(aes(x = DATE, y = FREQ_DAY)) + 
-  geom_line(color = "steelblue") + 
-  labs(title = "Frecuencia de Accidentes por Fecha",
-       x = "Fecha",
-       y = "Frecuencia") +
-  theme_minimal()
-
-data_time |>
-  ggplot(aes(x = DATE_MONTH, y = FREQ_MONTH)) + 
-  geom_line(color = "steelblue") + 
-  labs(title = "Frecuencia de Accidentes por Mes",
-       x = "Mes",
-       y = "Frecuencia") +
-  theme_minimal()
-
-data_time |>
-  ggplot(aes(x = DATE_YEAR, y = FREQ_YEAR)) + 
-  geom_line(color = "steelblue") + 
-  labs(title = "Frecuencia de Accidentes por Año",
-       x = "Año",
-       y = "Frecuencia") +
-  theme_minimal()
-
-```
-
-Mostramos también un gráfico de barras de la frecuencia de accidentes por día, mes y año. 
+*CAMBIAR ESTILO GRAFICOS COMO EN LA APP*
 
 ```{r}
-data_time |> 
-  group_by(DATE) |> 
-  summarise(FREQ_DAY = sum(FREQ_DAY)) |> 
-  ggplot(aes(x = DATE, y = FREQ_DAY)) + 
-  geom_bar(stat = "identity", fill = "steelblue") + 
-  labs(title = "Frecuencia de Accidentes por Dia",
-       x = "Mes",
-       y = "Frecuencia") +
-  theme_minimal()
-
 data_time |> 
   group_by(DATE_MONTH) |> 
   summarise(FREQ_MONTH = sum(FREQ_MONTH)) |> 
@@ -306,23 +257,31 @@ data_time |>
        y = "Frecuencia") +
   theme_minimal()
 
-# ahora por dia
-data_time |> 
+data_time |>
+  ggplot(aes(x = DATE_MONTH, y = FREQ_MONTH)) + 
+  geom_line(color = "steelblue") + 
+  labs(title = "Evolución de frecuencia de accidentes mensualmente",
+       x = "Mes",
+       y = "Frecuencia") +
+  theme_minimal()
+
+data_time |>
   ggplot(aes(x = DATE_YEAR, y = FREQ_YEAR)) + 
-  geom_bar(stat = "identity", fill = "steelblue") + 
+  geom_line(color = "steelblue") + 
   labs(title = "Frecuencia de Accidentes por Año",
        x = "Año",
        y = "Frecuencia") +
   theme_minimal()
-```
 
-Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
+```
+En el primer gráfico observamos cuales son los meses que máyor frecuencia de accidentes tienen. Observamos como a principios de verano es cuando más alta es la frecuencia (mayo, junio y julio) tal vez porque la gente se mueve más por el buen tiempo, pero aún teniendo que ir a trabajar. En agosto y septiembre se reduce la frecuencia, tal vez por el efecto de las vacaciones. Por otra parte, sin duda los meses de febrero (por tener 29 días) y abril (tal vez por ser el mes en el que más afecto el confinamiento de 2020) son los que menor frecuencia de accidentes tienen.
+
+
+En el segundo y tercer gráfico observamos como ha ido evolucionando la frecuencia de accidentes a lo largo del tiempo, ya sea con datos acumulados mensuales o anuales. Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
 
 ## Variable 'BOROUGH':
 
-
 ```{r, warning=FALSE}
-# Mostramos el histograma de los barrios, además del box plot:
 data_sampled |> 
   ggplot(aes(x = BOROUGH)) +
   geom_histogram(stat = "count", fill = "steelblue") +
