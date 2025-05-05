@@ -986,6 +986,10 @@ ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
 Una vez eliminadas las variables LONGITUDE y LATITUDE del análisis, se aprecia una pérdida notable en la calidad de la agrupación, los clústeres resultantes no muestran una estructura tan clara como antes. Esto indica que los grupos formados tienen menos coherencia interna y mayor solapamiento entre ellos. En otras palabras, sin la información geográfica precisa que aportaban esas variables, el modelo tiene más dificultades para diferenciar patrones consistentes en los datos. Este resultado confirma que LONGITUDE y LATITUDE eran variables muy influyentes —quizá demasiado— y que, al eliminarlas, se muestra la verdadera dificultad del problema de segmentación.
  
 ## Análisis de correspondencia
+```{r}
+data_sampled <- data_sampled |> 
+  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")))
+```
 
 ### 1. Tipo de vehiculo y causa:
 
