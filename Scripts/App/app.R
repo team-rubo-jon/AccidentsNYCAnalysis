@@ -3,10 +3,15 @@ library(shinythemes)
 library(bslib)
 library(tidyverse)
 library(lubridate)
+library(factoextra)
+library(cluster)
+library(dendextend)
 library(zoo)
 library(leaflet)
 library(leaflet.extras)
 library(dplyr)
+library(tsibble)
+library(DT)
 
 data_sampled <- read.csv("data_sampled.csv")
 
@@ -624,7 +629,7 @@ server <- function(input, output, session) {
         div(style = "position: relative; height: 60px; background-color: transparent; width: 100%;",
             
             # Línea base gris (más corta y centrada)
-            div(style = "position: absolute; top: 30px; left: 3%; width: 94%; height: 2px; background-color: #888;"),
+            div(style = "position: absolute; top: 30px; left: -1%; width: 97%; height: 2px; background-color: #888;"),
             
             # Ticks y etiquetas
             lapply(seq_along(años), function(i) {
