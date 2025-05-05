@@ -592,7 +592,9 @@ De nuevo, obtenemos la misma conclusión que en los dos casos anteriores. Por lo
 
 ## Clusterizaciones
 
-### 1. Seleccionar variables numéricas relevantes:
+### Análisis Cluster Jerárquico en variable 'BOROUGH':
+
+#### 1. Seleccionar variables numéricas relevantes:
 
 ```{r}
 data_cluster <- data_sampled |> 
@@ -603,7 +605,7 @@ data_cluster <- data_sampled |>
 data_scaled <- scale(data_cluster)
 ```
 
-### 2. Determinar el número óptimo de clusters:
+#### 2. Determinar el número óptimo de clusters:
 
 ```{r}
 wss <- vector()
@@ -620,7 +622,7 @@ plot(1:10, wss, type = "b", pch = 19,
 
 ```
 
-### 3. Realizar el clustering y visualizar:
+#### 3. Realizar el clustering y visualizar:
 
 ```{r}
 set.seed(123)
@@ -637,7 +639,7 @@ fviz_cluster(kmeans_result, data = data_scaled,
 
 Vemos que no se obtiene nada claro. Vamos a probar con otro tipo de clustering, el clustering jerárquico.
 
-### Clustering jerarquico
+#### Clustering jerarquico
 
 ```{r}
 # Calcular la matriz de distancias
@@ -658,7 +660,7 @@ clusters <- cutree(hc, k = 3)
 table(clusters)
 ```
 
-### Agrupar los datos por barrios y clusterizar:
+#### Agrupar los datos por barrios y clusterizar:
 
 ```{r}
 # Este se puede borrar ya que no tiene mucho sentido:
@@ -708,7 +710,6 @@ hc <- hclust(dist_matrix, method = "complete")
 plot(hc, labels = data_borough_sum$BOROUGH, main = "Dendrograma de barrios (suma total)")
 rect.hclust(hc, k = 3, border = "blue")  # Prueba con k = 2, 3, 4, etc.
 ```
-<<<<<<< HEAD
 
 Añadir un gráfico de barras comparando las variables entre los clústeres.
 
@@ -757,6 +758,72 @@ ggplot(data_borough_long, aes(x = Variable, y = Total, fill = cluster)) +
 ```
 
 Este gráfico demuestra que nuestra hipótesis anterior tiene sentido, ya que el clúster es capaz de agrupar los distintos distritos de una manera muy correcta en función del número total de heridos y muertos.
+
+### Análisis Cluster Jerárquico variable 'CAUSE':
+
+Vamos a realizar una clusterización de los diferentes factores contribuyentes al accidente. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
+
+Establecemos similitudes entre los nombres de las causas, mediante una matriz de distancias que representa la distancia entre las diferentes causas según su similitud.
+
+
+```{r}
+# Crear matriz de distancias entre nombres de causas
+dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")  
+
+# método Jaro-Winkler, o "lv" para Levenshtein
+rownames(dist_matrix) <- causes_cleaned$CAUSE
+colnames(dist_matrix) <- causes_cleaned$CAUSE
+```
+
+
+Clustering jerarquico
+
+```{r, warning=FALSE}
+hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
+
+k <- 8
+
+fviz_dend(x = hc,
+          k = k,
+          k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
+          color_labels_by_k = TRUE,
+          rect = TRUE,
+          rect_fill = TRUE,
+          cex = 0.5,
+          main = "Dendrograma - ward",
+          xlab = "observaciones",
+          ylab = "distancia",
+          sub = "")
+
+```
+
+Para un valor de k = 8, es decir, agrupar las causas en 8 grupos, se pueden observar cosas interesantes. En primer lugar, hemos conseguido reducir el número de causas de 52 a 8, lo que nos permite simplificar el análisis. Además, hemos agrupado causas similares entre sí, lo que nos permite ver patrones en los datos. Por ejemplo, el grupo 2 (naranja), prácticamente todas son debido a un defecto, ya sea en el pavimento, los frenos... En general, en todos los grupos hay causas relacionadas.
+
+Vamos a graficar las siluetas para ver que tal realiza la clusterización:
+
+```{r, warning=FALSE}
+clusters <- cutree(hc, k = k)
+
+# Calcular silueta
+sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+
+# Graficar con estilo personalizado
+fviz_silhouette(sil) +
+  ggtitle(paste("Índice de Silueta para k =", k)) +
+  theme_minimal(base_family = "Roboto Condensed") +
+  theme(
+    plot.background = element_rect(fill = "#F4F4F4", color = NA),
+    panel.background = element_rect(fill = "#F4F4F4", color = NA),
+    plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
+    axis.text = element_text(color = "#2E2E2E", size = 10),
+    axis.title = element_text(color = "#2E2E2E", size = 11),
+    panel.grid.major = element_line(color = "#CCCCCC"),
+    panel.grid.minor = element_blank()
+  )
+```
+
+Seguún este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
+
 
 ## Análisis discriminante
 
@@ -1100,73 +1167,5 @@ summary(ca_result)
 # Visualizar el gráfico de correspondencia
 plot(ca_result)
 ```
-
-
-### Variable 'CAUSE'
-
-#### Prueba 3
-
-Vamos a realizar una clusterización de los diferentes factores contribuyentes al accidente. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
-
-Establecemos similitudes entre los nombres de las causas, mediante una matriz de distancias que representa la distancia entre las diferentes causas según su similitud.
-
-
-```{r}
-# Crear matriz de distancias entre nombres de causas
-dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")  
-
-# método Jaro-Winkler, o "lv" para Levenshtein
-rownames(dist_matrix) <- causes_cleaned$CAUSE
-colnames(dist_matrix) <- causes_cleaned$CAUSE
-```
-
-
-Clustering jerarquico
-
-```{r, warning=FALSE}
-hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
-
-k <- 8
-
-fviz_dend(x = hc,
-          k = k,
-          k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
-          color_labels_by_k = TRUE,
-          rect = TRUE,
-          rect_fill = TRUE,
-          cex = 0.5,
-          main = "Dendrograma - ward",
-          xlab = "observaciones",
-          ylab = "distancia",
-          sub = "")
-
-```
-Para un valor de k = 8, es decir, agrupar las causas en 8 grupos, se pueden observar cosas interesantes. En primer lugar, hemos conseguido reducir el número de causas de 52 a 8, lo que nos permite simplificar el análisis. Además, hemos agrupado causas similares entre sí, lo que nos permite ver patrones en los datos. Por ejemplo, el grupo 2 (naranja), prácticamente todas son debido a un defecto, ya sea en el pavimento, los frenos... En general, en todos los grupos hay causas relacionadas.
-
-Vamos a graficar las siluetas para ver que tal realiza la clusterización:
-
-```{r, warning=FALSE}
-clusters <- cutree(hc, k = k)
-
-# Calcular silueta
-sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
-
-# Graficar con estilo personalizado
-fviz_silhouette(sil) +
-  ggtitle(paste("Índice de Silueta para k =", k)) +
-  theme_minimal(base_family = "Roboto Condensed") +
-  theme(
-    plot.background = element_rect(fill = "#F4F4F4", color = NA),
-    panel.background = element_rect(fill = "#F4F4F4", color = NA),
-    plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
-    axis.text = element_text(color = "#2E2E2E", size = 10),
-    axis.title = element_text(color = "#2E2E2E", size = 11),
-    panel.grid.major = element_line(color = "#CCCCCC"),
-    panel.grid.minor = element_blank()
-  )
-```
-
-Seguún este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
-
 
 # CONCLUSIONES
