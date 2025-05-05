@@ -318,7 +318,7 @@ ui <- navbarPage(
             format = "yyyy-mm-dd"
           ),
           
-
+          
           div(
             style = "display: flex; justify-content: center; gap: 10px; margin-top: 20px;",
             actionButton("start", "Comenzar", class = "btn-success",
