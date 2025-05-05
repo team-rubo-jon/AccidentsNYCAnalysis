@@ -407,7 +407,7 @@ ggpairs(data_sampled, columns = c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURE
         title = "Matriz de Correlación entre Variables")
 ```
 
-*No se yo si la correlación tiene mucho sentigo hacerlo o si es significativa...*
+En conclusión, la matriz de correlaciones muestra relaciones fuertes entre variables agregadas y sus subcomponentes, como entre personas heridas y motoristas heridos, lo cual es esperable y refleja coherencia en los datos; sin embargo, la mayoría de las demás correlaciones entre heridos y fallecidos de distintos grupos (peatones, ciclistas, motoristas) son débiles o prácticamente nulas, lo que sugiere que estas variables afectan a poblaciones distintas y no presentan multicolinealidad significativa.
 
 Vamos a mostrar un histograma por cada variable o variables que creamos que van conjuntamente, y así ver la distribución de los datos. Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
 
