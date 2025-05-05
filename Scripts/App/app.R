@@ -12,6 +12,7 @@ library(leaflet.extras)
 library(dplyr)
 library(tsibble)
 library(DT)
+library(stringdist)
 
 data_sampled <- read.csv("data_sampled.csv")
 
