@@ -914,15 +914,20 @@ server <- function(input, output, session) {
     dend <- color_branches(dend, k = input$k)
     dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])
     
-    # Convertir a objeto ggplot
-    # Convertir y girar el dendrograma
-    ggd <- as.ggdend(dend)
-    ggd$labels$angle <- 0  # Para que queden horizontales si se desea
+    # Dibujar dendrograma con estilo y rectángulos (si se selecciona)
+    p <- factoextra::fviz_dend(
+      dend,
+      k = input$k,
+      horiz = TRUE,
+      rect = input$show_rect,
+      rect_border = "#1F3B73",
+      rect_fill = FALSE,
+      main = "Dendrograma de distritos",
+      cex = 0.7,
+      color_labels_by_k = TRUE
+    )
     
-    # Graficar en orientación horizontal
-    ggplot(ggd, horiz = TRUE) +  # ESTA LÍNEA CAMBIA
-      labs(title = "Dendrograma de distritos") +
-      theme_minimal(base_family = "Roboto Condensed") +
+    p + theme_minimal(base_family = "Roboto Condensed") +
       theme(
         plot.background = element_rect(fill = "#F4F4F4", color = NA),
         panel.background = element_rect(fill = "#F4F4F4", color = NA),
@@ -932,8 +937,8 @@ server <- function(input, output, session) {
         panel.grid.major = element_line(color = "#CCCCCC"),
         panel.grid.minor = element_blank()
       )
-    
   })
+  
   
   
   
