@@ -36,7 +36,7 @@ library(pROC)
 Jon:
 
 ```{r}
-data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
+#data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
 Rubén:
@@ -48,7 +48,7 @@ Rubén:
 Fermin:
 
 ```{r}
-# data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
 # INTRODUCCION

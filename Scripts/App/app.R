@@ -930,6 +930,10 @@ server <- function(input, output, session) {
   })
   
   # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO DE CAUSAS:
+  causes_cleaned <- data_sampled |>
+    count(CAUSE, name = "FREQUENCY") |>
+    arrange(desc(FREQUENCY))
+  
   output$dendrogram_plot_causes <- renderPlot({
     # Calcular matriz de distancias entre nombres de causas con Jaro-Winkler
     dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
