@@ -26,6 +26,8 @@ library(psych)
 library(caret)
 library(MASS)
 library(ca)
+library(leaflet)
+library(leaflet.extras)
 library(stringdist)
 library(igraph)
 library(tidygraph)
@@ -49,13 +51,13 @@ Jon:
 Rubén:
 
 ```{r}
-data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
+#data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
 ```
 
 Fermin:
 
 ```{r}
-#data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
 # INTRODUCCION
@@ -1155,3 +1157,7 @@ plot(ca_result)
 ```
 
 # CONCLUSIONES
+```{r}
+
+```
+
