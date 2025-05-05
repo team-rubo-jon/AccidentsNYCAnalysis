@@ -237,13 +237,6 @@ write.csv(data_sampled, "App/data_sampled.csv", row.names = FALSE)
 data_sampled <- read.csv("data_sampled.csv")
 ```
 
-*TEMPORAL, PARA NO ANDAR ABRIENDO EL ARCHIVO GRANDE*
-
-```{r}
-data_sampled$VEHICLE_1 <- toupper(data_sampled$VEHICLE_1)
-data_sampled$VEHICLE_2 <- toupper(data_sampled$VEHICLE_2)
-data_sampled$CAUSE <- toupper(data_sampled$CAUSE)
-```
 # ANALISIS DESCRIPTIVO
 
 Una vez obtenido el dataset con el que trabajaremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas.
@@ -637,7 +630,7 @@ fviz_cluster(kmeans_result, data = data_scaled,
 
 ```
 
-Vemos que no se obtiene nada claro. Vamos a probar con otro tipo de clustering, el clustering jerárquico.
+Vemos que no se obtiene nada claro ni interesante para analizar. Vamos a probar con otro tipo de clustering, el clustering jerárquico.
 
 #### Clustering jerarquico
 
@@ -660,25 +653,9 @@ clusters <- cutree(hc, k = 3)
 table(clusters)
 ```
 
+Dado que tal y como hemos calculado el clúster jerárquico no obtenemos un resultado interesante, vamos a probar la alternativa de agrupar los datos por barrios.
+
 #### Agrupar los datos por barrios y clusterizar:
-
-```{r}
-# Este se puede borrar ya que no tiene mucho sentido:
-data_borough_sum <- data_sampled |> 
-  group_by(BOROUGH) |> 
-  summarise(
-    total_injured = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
-    total_killed = sum(NUM_PERSONS_KILLED, na.rm = TRUE),
-    total_ped_injured = sum(NUM_PEDESTRIANS_INJURED, na.rm = TRUE),
-    total_cyclist_injured = sum(NUM_CYCLIST_INJURED, na.rm = TRUE),
-    total_motorist_injured = sum(NUM_MOTORIST_INJURED, na.rm = TRUE),
-    total_ped_killed = sum(NUM_PEDESTRIANS_KILLED, na.rm = TRUE),
-    total_cyclist_killed = sum(NUM_CYCLIST_KILLED, na.rm = TRUE),
-    total_motorist_killed = sum(NUM_MOTORIST_KILLED, na.rm = TRUE)
-  ) |> 
-  na.omit()
-
-```
 
 ```{r}
 # Sólo con el total de muertos y heridos:
@@ -758,6 +735,22 @@ ggplot(data_borough_long, aes(x = Variable, y = Total, fill = cluster)) +
 ```
 
 Este gráfico demuestra que nuestra hipótesis anterior tiene sentido, ya que el clúster es capaz de agrupar los distintos distritos de una manera muy correcta en función del número total de heridos y muertos.
+
+Por último, añadiremos el shilouette para comprobar si nuestra disposición del clúster es buena o no:
+
+```{r}
+# Calcular silueta
+sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+
+# Graficar con estilo personalizado:
+fviz_silhouette(sil) +
+  ggtitle(paste("Índice de Silueta para k = 3")) +
+  theme_minimal()
+```
+
+El análisis de la silueta respalda en buena medida la clasificación obtenida. Los grupos formados por el Bronx junto a Manhattan, y Brooklyn junto a Queens, muestran una estructura muy sólida: sus valores de silueta son claramente altos, lo que indica que los distritos dentro de cada clúster se parecen mucho entre sí y están bien separados de los demás. Esto refuerza la idea de que ambos grupos tienen sentido, tanto desde un punto de vista numérico como contextual.
+
+Sin embargo, Staten Island, que ha quedado como un clúster independiente, presenta una silueta bastante más baja —incluso negativa—. Esto quiere decir que, aunque por sus características es razonable considerarlo un caso aparte, los datos no lo separan de forma tan clara como ocurre con los otros clústeres. Aun así, teniendo en cuenta su baja densidad de población y su configuración más suburbana, parece justificado mantenerlo como un grupo propio. Este contraste entre lo que dicen los números y lo que observamos en la realidad muestra lo útil que es combinar el análisis estadístico con la interpretación del contexto para entender mejor los resultados.
 
 ### Análisis Cluster Jerárquico variable 'CAUSE':
 
@@ -860,20 +853,12 @@ data_sampled <- data_sampled |>
   mutate(CAUSE = ifelse(CAUSE %in% top_causes, CAUSE, "OTROS"))
 ```
 
-
-Creamos una columna de hora numérica: *VOY A PROBAR SIN AÑADIR HOUR, SINO INCLUYENDO TIME*
-
-```{r}
-data_sampled <- data_sampled |> 
-  mutate(HOUR = as.numeric(substr(TIME, 1, 2)))
-```
-
-Seleccionamos las variables: *VOY HACER SIN TIME, LATITUDE y LONGITUDE*
+Seleccionamos las variables:
 
 ```{r}
 data_lda <- data_sampled |> 
   dplyr::select(BOROUGH,
-         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED,
+         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED, LONGITUDE, LATITUDE,
          NUM_PEDESTRIANS_INJURED, NUM_PEDESTRIANS_KILLED,
          NUM_CYCLIST_INJURED, NUM_CYCLIST_KILLED,
          NUM_MOTORIST_INJURED, NUM_MOTORIST_KILLED,
@@ -930,171 +915,75 @@ ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
   theme_minimal()
 ```
 
-Vemos que no tiene sentido hacer este análisis, sólo reliza buenas predicciones si disponemos de las variables LONGITUDE y LATITUDE. Pero estamos incurriendo a una especie de "trampa".
+Se observa que el modelo obtiene buenos resultados únicamente cuando se incluyen las variables LONGITUDE y LATITUDE. Sin embargo, esto introduce una especie de “trampa”, ya que esas variables están muy relacionadas con la ubicación exacta del accidente, lo que facilita en exceso la predicción. Por ello, para evaluar realmente la capacidad del modelo, resulta más apropiado repetir el análisis excluyendo estas variables y observar cómo se comporta con información menos directa.
 
-Sin embargo, sí que puede ser interesante predecir la causa del accidente en función de distintas variables. Teniendo en cuenta que vamos a coger las 10 más frecuentes y el resto, se incluirá como causa OTROS:
+Vamos a comprobar entonces qué pasaría si realizaramos el mismo análisis sin esas variables:
+
+### 1.2 Selección de variables:
+
+Seleccionamos las variables, excepto LATITUDE y LONGITUDE:
 
 ```{r}
-# 1. Crear variable VEHICLE_COUNT --> Si hay un segundo vehículo incluimos 2, sino 1.
-data_sampled <- data_sampled |> 
-  mutate(VEHICLE_COUNT = ifelse(is.na(VEHICLE_2), 1, 2))
-
-# 2. Quedarse con las 5 causas más frecuentes
-top_causes <- data_sampled |> 
-  count(VEHICLE_1, sort = TRUE) |> 
-  slice_head(n = 10) |> 
-  pull(VEHICLE_1)
-
 data_lda <- data_sampled |> 
-  filter(VEHICLE_1 %in% top_causes) |> 
-  mutate(CAUSE = factor(VEHICLE_1),
-         BOROUGH = factor(BOROUGH),
-         HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H"))) |> 
-  dplyr::select(CAUSE, HOUR, BOROUGH, VEHICLE_COUNT, 
-         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED) |> 
+  dplyr::select(BOROUGH,
+         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED,
+         NUM_PEDESTRIANS_INJURED, NUM_PEDESTRIANS_KILLED,
+         NUM_CYCLIST_INJURED, NUM_CYCLIST_KILLED,
+         NUM_MOTORIST_INJURED, NUM_MOTORIST_KILLED,
+         VEHICLE_1, VEHICLE_2, CAUSE) |>
   na.omit()
+```
 
-# 3. Codificar variables categóricas (BOROUGH) como dummies
-data_dummies <- dummyVars(CAUSE ~ ., data = data_lda)
-data_transformed <- predict(data_dummies, newdata = data_lda)
-data_final <- data.frame(CAUSE = data_lda$CAUSE, data_transformed)
 
-# 4. Dividir en entrenamiento y prueba
+### 2.2 Convertir las variables categóricas en dummies:
+
+```{r}
+data_lda_dummy <- dummyVars(BOROUGH ~ ., data = data_lda)
+data_lda_transformed <- predict(data_lda_dummy, newdata = data_lda)
+data_lda_final <- data.frame(BOROUGH = data_lda$BOROUGH, data_lda_transformed)
+```
+
+### 3.2 Crear un conjunto de entrenamiento y test:
+
+```{r}
 set.seed(123)
-train_index <- createDataPartition(data_final$CAUSE, p = 0.7, list = FALSE)
-train_data <- data_final[train_index, ]
-test_data <- data_final[-train_index, ]
+train_index <- createDataPartition(data_lda_final$BOROUGH, p = 0.7, list = FALSE)
+train_data <- data_lda_final[train_index, ]
+test_data <- data_lda_final[-train_index, ]
+```
 
-train_data <- train_data |> dplyr::select(-NUM_PERSONS_KILLED, -VEHICLE_COUNT)
-test_data  <- test_data  |> dplyr::select(-NUM_PERSONS_KILLED, -VEHICLE_COUNT)
+### 4.2 Aplicamos el análisis discriminante:
 
-# 5. Modelo LDA
-lda_model <- lda(CAUSE ~ ., data = train_data)
+```{r}
+# Aplicar LDA
+lda_model <- lda(BOROUGH ~ ., data = train_data)
+lda_model
 
-# 6. Predicción y matriz de confusión
+```
+
+### 5.2 Evaluamos el modelo:
+
+```{r}
 predictions <- predict(lda_model, newdata = test_data)
-conf_matrix <- table(Predicho = predictions$class, Real = test_data$CAUSE)
-print(conf_matrix)
 
+# Matriz de confusión
+table(Predicho = predictions$class, Real = test_data$BOROUGH)
 ```
 
-## Random forest
+### 6.2 Visualizar las dos primeras funciones discriminantes:
 
 ```{r}
-# Paquetes necesarios
-library(randomForest)
+lda_df <- data.frame(predictions$x, BOROUGH = test_data$BOROUGH)
 
-# 1. Agrupar las poco frecuentes:
-
-# Función para agrupar niveles poco frecuentes
-group_rare_levels <- function(x, threshold = 0.01) {
-  freq <- prop.table(table(x))
-  rare_levels <- names(freq[freq < threshold])
-  x <- as.character(x)
-  x[x %in% rare_levels] <- "OTROS"
-  factor(x)
-}
-
-# Aplicar a los datos
-data_sampled <- data_sampled |> 
-  mutate(
-    VEHICLE_1 = group_rare_levels(VEHICLE_1),
-    VEHICLE_2 = group_rare_levels(VEHICLE_2),
-    CAUSE = group_rare_levels(CAUSE)
-  )
-
-data_sampled <- data_sampled |> 
-  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")))
-
-# 2. Crear conjunto de entrenamiento y test
-set.seed(42)
-n <- nrow(data_sampled)
-train_index <- sample(1:n, size = floor(0.7 * n))
-train_data <- data_sampled[train_index, ] |> 
-  dplyr::select(-TIME, -DATE)
-test_data <- data_sampled[-train_index, ] |> 
-  dplyr::select(-TIME, -DATE)
-
-# 3. Convertir variables categóricas a factor
-train_data <- train_data |> mutate(across(where(is.character), as.factor))
-test_data <- test_data |> mutate(across(where(is.character), as.factor))
-
-# 4. Ajustar modelo Random Forest
-rf_model <- randomForest(CAUSE ~ ., data = train_data, ntree = 100, importance = TRUE)
-
-# 5. Predicciones y matriz de confusión
-predictions <- predict(rf_model, newdata = test_data)
-conf_matrix <- table(Predicho = predictions, Real = test_data$CAUSE)
-as.table(conf_matrix)
-
-# 6. Importancia de variables
-importance(rf_model)
-varImpPlot(rf_model)
-
-
-
+ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "Proyección LDA: Accidentes por distrito sin LATITUDE y LONGITUDE",
+       x = "Función discriminante 1",
+       y = "Función discriminante 2") +
+  theme_minimal()
 ```
 
-### Gráficas de resultados:
-
-#### Matriz de confusión:
-
-```{r}
-# Convertir la matriz de confusión en un formato más adecuado para ggplot
-conf_matrix_df <- as.data.frame(as.table(conf_matrix))
-
-# Graficar la matriz de confusión
-ggplot(conf_matrix_df, aes(x = Predicho, y = Real, fill = Freq)) + 
-  geom_tile() + 
-  geom_text(aes(label = Freq), color = "white", size = 4) + 
-  scale_fill_gradient(low = "white", high = "blue") + 
-  theme_minimal() +
-  labs(title = "Matriz de Confusión", x = "Predicho", y = "Real")
-```
-
-#### Curva ROC:
-
-```{r}
-# Calcular la curva ROC
-roc_curve <- roc(test_data$CAUSE, as.numeric(predictions))
-plot(roc_curve, main = "Curva ROC")
-```
-
-#### Importancia de las variables:
-
-```{r}
-# Visualizar la importancia de las variables con un gráfico
-var_imp <- importance(rf_model)
-var_imp_df <- data.frame(Variable = rownames(var_imp), Importance = var_imp[, 1])
-
-# Graficar
-ggplot(var_imp_df, aes(x = reorder(Variable, Importance), y = Importance)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  coord_flip() +
-  labs(title = "Importancia de las Variables", x = "Variable", y = "Importancia")
-
-```
-
-#### Distribución de las predicciones
-
-```{r}
-# Gráfico de distribución de las predicciones y las clases reales
-ggplot(data.frame(Predicho = predictions, Real = test_data$CAUSE), aes(x = Predicho, fill = Real)) +
-  geom_bar(position = "dodge") +
-  labs(title = "Distribución de Predicciones vs Clases Reales", x = "Predicción", y = "Frecuencia")
-
-```
-
-#### Gráfico de dependencia parcial:
-
-```{r}
-# Gráfico de dependencia parcial
-library(pdp)
-partial_plot <- partial(rf_model, pred.var = "HOUR", grid.resolution = 50)
-plot(partial_plot)
-
-```
-
+Una vez eliminadas las variables LONGITUDE y LATITUDE del análisis, se aprecia una pérdida notable en la calidad de la agrupación, los clústeres resultantes no muestran una estructura tan clara como antes. Esto indica que los grupos formados tienen menos coherencia interna y mayor solapamiento entre ellos. En otras palabras, sin la información geográfica precisa que aportaban esas variables, el modelo tiene más dificultades para diferenciar patrones consistentes en los datos. Este resultado confirma que LONGITUDE y LATITUDE eran variables muy influyentes —quizá demasiado— y que, al eliminarlas, se muestra la verdadera dificultad del problema de segmentación.
  
 ## Análisis de correspondencia
 
@@ -1148,8 +1037,6 @@ plot(ca_result)
 ```
 
 ### 4. Causa del accidente y día de la semana: 
-
-*NO PUEDO OBTENER EL DÍA DE LA SEMANA DE TODOS, PERO IGUAL CON LOS QUE TENEMOS NOS BASTA*
 
 ```{r}
 # Extraer el día de la semana de la variable TIME
