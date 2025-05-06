@@ -35,14 +35,11 @@ data_time <- data_sampled |>
   dplyr::select(DATE, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR, BOROUGH) |>
   arrange(DATE)
 
-# Obtener fechas mínimas y máximas para el rango
 min_date <- min(data_time$DATE)
 max_date <- max(data_time$DATE)
 
-# Obtener lista única de barrios
 borough_choices <- unique(na.omit(data_sampled$BOROUGH))
 
-# para el mapa evolutivo
 window_size <- 2500
 step_size <- 20
 interval_ms <- 200
@@ -53,23 +50,22 @@ data_sampled <- data_sampled |>
          DAY_OF_WEEK = weekdays(as.Date(DATE, format = "%Y-%m-%d")))
 data_sampled$HOUR <- as.factor(data_sampled$HOUR)
 data_sampled$DAY_OF_WEEK <- toupper(data_sampled$DAY_OF_WEEK)
-data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))  # Elimina espacios
+data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))
 
 # Crear tema personalizado
 ny_theme <- bs_theme(
   version = 5,
-  primary = "#FFD100",       # Amarillo taxi
-  secondary = "#2E2E2E",     # Gris asfalto
-  success = "#1F3B73",       # Azul NYPD
-  danger = "#FF4C4C",        # Rojo alerta
-  bg = "#F4F4F4",            # Fondo claro
-  fg = "#2E2E2E",            # Texto
+  primary = "#FFD100", # Amarillo taxi
+  secondary = "#2E2E2E",     
+  success = "#1F3B73",       
+  danger = "#FF4C4C",        
+  bg = "#F4F4F4",            
+  fg = "#2E2E2E",            
   base_font = font_google("Roboto Condensed"),
   heading_font = font_google("Bebas Neue"),
   code_font = font_google("Fira Code")
 )
 
-# Tema personalizado para gráficos
 theme_nyc <- function() {
   theme_minimal(base_family = "Roboto Condensed") +
     theme(
@@ -88,7 +84,6 @@ theme_nyc <- function() {
       strip.text = element_text(color = "#2E2E2E", face = "bold")
     )
 }
-# UI CORREGIDA Y BIEN ESTRUCTURADA
 
 ui <- tagList(
   tags$head(
@@ -282,7 +277,7 @@ ui <- tagList(
              )
     ),
     
-    # Panel para los análisis
+    # Panel analisis de interes
     tabPanel(
       tags$div("Análisis de interés 💡️", style = "font-size: 18px; font-weight: bold;"),
       
@@ -412,10 +407,8 @@ ui <- tagList(
 )
 
 
-# SERVER
 server <- function(input, output, session) {
   
-  # Observadores para los botones de selección/deselección (frecuencia)
   observeEvent(input$select_all_freq, {
     updateCheckboxGroupInput(session, "borough_freq", selected = borough_choices)
   })
@@ -424,7 +417,6 @@ server <- function(input, output, session) {
     updateCheckboxGroupInput(session, "borough_freq", selected = character(0))
   })
   
-  # Datos filtrados para la pestaña de frecuencia
   filtered_data_freq <- reactive({
     req(input$date_range_freq)
     
@@ -432,29 +424,25 @@ server <- function(input, output, session) {
       filter(DATE >= input$date_range_freq[1], 
              DATE <= input$date_range_freq[2])
     
-    # Filtrar por barrios seleccionados (si hay alguno seleccionado)
     if (length(input$borough_freq) > 0) {
       df <- df |> 
         filter(BOROUGH %in% input$borough_freq)
     } else {
-      return(NULL)  # No mostrar datos si no hay barrios seleccionados
+      return(NULL)
     }
     
     return(df)
   })
   
-  # Datos filtrados para la pestaña de variables
   filtered_data_var <- reactive({
     req(input$date_range_var)
     df <- data_sampled |> 
       filter(DATE >= input$date_range_var[1], DATE <= input$date_range_var[2])
-    
-    # Filtrar por barrio si no es "Todos"
+
     if (input$borough != "Todos") {
       df <- df |> 
         filter(BOROUGH == input$borough)
     }
-    
     return(df)
   })
   
@@ -463,16 +451,13 @@ server <- function(input, output, session) {
     df <- data_sampled |> 
       mutate(DATE = as.Date(DATE))
     
-    # Filtro por fechas
     df <- df |> 
       filter(DATE >= input$Fecha[1], DATE <= input$Fecha[2])
     
-    # Filtro por causa del accidente
     if (input$causa != "Todas") {
       df <- df |> filter(CAUSE == input$causa)
     }
-    
-    # Filtro por tipo de usuario
+
     if (length(input$tipo_usuario) == 0) {
       df <- df[0, ]
     } else {
@@ -508,7 +493,7 @@ server <- function(input, output, session) {
     df
   })
   
-  # Para el mapa evolutivo
+  # Mapa evolucion
   index <- reactiveVal(1)
   running <- reactiveVal(FALSE)
   
@@ -584,13 +569,11 @@ server <- function(input, output, session) {
         
         div(style = "position: relative; height: 60px; background-color: transparent; width: 100%;",
             
-            # Línea base gris (más corta y centrada)
             div(style = "position: absolute; top: 30px; left: -1%; width: 97%; height: 2px; background-color: #000000;"),
-            
-            # Ticks y etiquetas
+
             lapply(seq_along(años), function(i) {
               pct_pos <- (as.numeric(as.Date(paste0(años[i], "-01-01")) - fecha_min) / total_days) * 100
-              left_pos <- paste0(3 + pct_pos * 0.94, "%")  # Ajustado al nuevo ancho del 94%
+              left_pos <- paste0(3 + pct_pos * 0.94, "%")
               label <- if (años[i] %% 2 == 0) as.character(años[i]) else NULL
               
               tagList(
@@ -608,7 +591,6 @@ server <- function(input, output, session) {
               )
             }),
             
-            # Indicador azul (ajustado también al ancho relativo)
             div(
               style = paste0(
                 "position: absolute; top: 26px; left: ", 3 + start_pct * 0.94, "%; width: ", width_pct * 0.94, "%; ",
@@ -627,14 +609,11 @@ server <- function(input, output, session) {
     })
   })
   
-  
-  
-  # Gráfico combinado (barras + líneas)
+  #Grafico barra y lineas
   output$combined_plot <- renderPlot({
     df <- filtered_data_freq()
-    if (is.null(df)) return()  # Salir si no hay datos
+    if (is.null(df)) return()
     
-    # Agregar por frecuencia temporal seleccionada
     if (input$freq_type == "daily") {
       df_agg <- df |>
         group_by(DATE) |>
@@ -657,23 +636,20 @@ server <- function(input, output, session) {
       title <- "Frecuencia de Accidentes por Año"
       xlab <- "Año"
     }
-    
-    # Crear gráfico base
+
     p <- ggplot(df_agg, aes(x = x, y = y))
-    
-    # Añadir elementos según el tipo de gráfico seleccionado
+
     if (input$graph_type == "bar") {
       p <- p + geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.8)
     } else if (input$graph_type == "line") {
       p <- p + geom_line(color = "#1F3B73", size = 1.2) +
         geom_point(color = "#FF4C4C", size = 2)
-    } else { # Combinado
+    } else {
       p <- p + geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.5) +
         geom_line(color = "#1F3B73", size = 1.2) +
         geom_point(color = "#FF4C4C", size = 2)
     }
-    
-    # Añadir etiquetas y tema
+
     p + labs(title = title, x = xlab, y = "Frecuencia") +
       theme_nyc()
   })
@@ -703,7 +679,7 @@ server <- function(input, output, session) {
                  x = ~DATE,
                  y = ~accidents,
                  color = ~BOROUGH,
-                 colors = "Dark2",  # paleta más oscura
+                 colors = "Dark2",
                  type = 'scatter',
                  mode = 'lines+markers',
                  line = list(width = 2),
@@ -739,12 +715,7 @@ server <- function(input, output, session) {
     
     p
   })
-  
-  
-  
-  
-  
-  # Texto resumen
+
   output$summary_text <- renderText({
     df <- filtered_data_freq()
     if (is.null(df)) return("Seleccione al menos un distrito para ver los datos.")
@@ -800,11 +771,11 @@ server <- function(input, output, session) {
     df <- df |> 
       count(CAUSE, name = "FREQUENCY") |>  
       arrange(desc(FREQUENCY)) |>
-      head(input$top_causes)  # Filtrar por las causas más frecuentes
+      head(input$top_causes)
     
     ggplot(df, aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
       geom_bar(stat = "identity", fill = "#1F3B73") + 
-      coord_flip() +  # Rota el gráfico para mejor visualización
+      coord_flip() +
       labs(title = paste("Frecuencia de las", input$top_causes, "causas más comunes"),
            x = "Causa", y = "Frecuencia") +
       theme_nyc() + 
@@ -862,8 +833,7 @@ server <- function(input, output, session) {
   })
   
   
-  # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO DE DISTRITOS:
-  # Reactivo para almacenar los datos del dendrograma
+  # Analisis jerarquico distritos
   dend_data <- reactive({
     data_borough_sum <- data_sampled |> 
       group_by(BOROUGH) |> 
@@ -894,8 +864,7 @@ server <- function(input, output, session) {
     dend <- as.dendrogram(hc)
     dend <- color_branches(dend, k = input$k_dis)
     dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])
-    
-    # Dibujar dendrograma con estilo y rectángulos (si se selecciona)
+
     factoextra::fviz_dend(
       dend,
       k = input$k_dis,
@@ -917,19 +886,17 @@ server <- function(input, output, session) {
     hc <- data_list$hc
     data_borough_sum <- data_list$data
     
-    # Asignar clusters
     clusters <- cutree(hc, k = k)
-    
-    # Crear tabla con la columna Grupo
+
     result_table <- data_borough_sum |>
-      mutate(Grupo = as.factor(clusters)) |>  # Convertir a factor para el coloreado
+      mutate(Grupo = as.factor(clusters)) |>
       arrange(Grupo)
     
     datatable(
       result_table,
       options = list(
-        dom = 't',  # Elimina controles de búsqueda y paginación
-        pageLength = nrow(result_table)  # Muestra todas las filas
+        dom = 't',
+        pageLength = nrow(result_table)
       ),
       rownames = FALSE
     )
@@ -940,36 +907,27 @@ server <- function(input, output, session) {
     hc <- data_list$hc
     data_borough_sum <- data_list$data
     
-    # Obtener el número de clústeres (k) desde la entrada
     k <- input$k_dis
-    
-    # Asignar los clústeres usando cutree
     clusters <- cutree(hc, k = k)
-    
-    # Calcular la silueta usando la distancia
+
     dist_matrix <- dist(data_borough_sum[, c("total_injured", "total_killed")])
-    
-    # Visualizar el índice de silueta con fviz_silhouette
+
     fviz_silhouette(silhouette(clusters, dist_matrix)) + 
       ggtitle(paste("Índice de Silueta para k =", k)) +
       theme_nyc()
   })
-  
-  # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO DE CAUSAS:
+
   causes_cleaned <- data_sampled |>
     count(CAUSE, name = "FREQUENCY") |>
     arrange(desc(FREQUENCY))
   
   output$dendrogram_plot_causes <- renderPlot({
-    # Calcular matriz de distancias entre nombres de causas con Jaro-Winkler
     dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
     rownames(dist_matrix) <- causes_cleaned$CAUSE
     colnames(dist_matrix) <- causes_cleaned$CAUSE
-    
-    # Cluster jerárquico
+
     hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
-    
-    # Dibujar dendrograma con estilo personalizado
+
     fviz_dend(
       x = hc,
       k = input$k_cau,
@@ -988,7 +946,6 @@ server <- function(input, output, session) {
   })
   
   output$silhouette_plot_causes <- renderPlot({
-    # Calcular distancia y clustering
     dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
     rownames(dist_matrix) <- causes_cleaned$CAUSE
     colnames(dist_matrix) <- causes_cleaned$CAUSE
@@ -996,11 +953,9 @@ server <- function(input, output, session) {
     
     k <- input$k_cau
     clusters <- cutree(hc, k = k)
-    
-    # Calcular silueta
+
     sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
-    
-    # Graficar con estilo personalizado
+
     fviz_silhouette(sil) +
       ggtitle(paste("Índice de Silueta para k =", k)) +
       theme_nyc()
@@ -1008,17 +963,13 @@ server <- function(input, output, session) {
   
   
   output$causes_table <- renderDT({
-    # Distancia y clustering
     dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
     rownames(dist_matrix) <- causes_cleaned$CAUSE
     colnames(dist_matrix) <- causes_cleaned$CAUSE
     hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
-    
-    # Asignar grupos (k = 8 fijo o podrías usar input$k_causas)
     k <- input$k_cau
     clusters <- cutree(hc, k = k)
-    
-    # Crear tabla con grupo asignado
+
     causes_clustered <- data.frame(
       CAUSA = causes_cleaned$CAUSE,
       Grupo = as.factor(clusters)
@@ -1036,8 +987,7 @@ server <- function(input, output, session) {
   })
   
   
-  # ELEMENTOS PARA EL ANÁLISIS DE CORRESPONDENCIA
-  
+  # Analisis de correspondencia
   observeEvent(c(input$var1, input$var2), {
     req(input$var1 != input$var2)
   })
@@ -1063,7 +1013,6 @@ server <- function(input, output, session) {
     
     tab <- table(df[[var1]], df[[var2]])
     
-    # Eliminar filas/columnas vacías
     tab <- tab[rowSums(tab) > 0, colSums(tab) > 0]
     
     if (nrow(tab) < 2 || ncol(tab) < 2) return(NULL)
@@ -1138,10 +1087,6 @@ server <- function(input, output, session) {
       )
   })
   
-  
-  
-  
-  
   output$ca_contrib <- renderPlot({
     ca_res <- ca_result()
     req(!is.null(ca_res))
@@ -1181,8 +1126,6 @@ server <- function(input, output, session) {
            dim1 + dim2, "% de la varianza total. Esto sugiere una relación estructurada entre ambas variables.")
   })
   
-  
-  # Botones análisis de correspondencia:
   variables <- c("CAUSE", "HOUR", "DAY_OF_WEEK", "VEHICLE_1")
   
   observeEvent(input$var1, {
@@ -1200,5 +1143,5 @@ server <- function(input, output, session) {
   })
 }
 
-# Run the application
+#EJECUTAR
 shinyApp(ui = ui, server = server)
