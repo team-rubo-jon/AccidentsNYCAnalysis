@@ -538,15 +538,13 @@ Se observa como gran porcentaje de accidentes se deben a distracciones. También
 
 ## Variables 'VEHICLE_1' y 'VEHICLE_2':
 
-Por ultimo, analizaremos las variables correspondientes al tipo de vehículo primario y secundario implicados en el accidente. De forma similar a la varaible anterior, es una variable categórica, por lo que primero, vamos a ver la frecuencia de las distintos vehículos involucrados en los accidentes registrados. Para ello, vamos a crear una tabla para cada variable con su frecuencia.
+Por ultimo, analizaremos las variables correspondientes al tipo de vehículo primario y secundario implicados en el accidente. De forma similar a la varaible anterior, es una variable categórica, por lo que primero, vamos a crear una tabla para cada variable con su frecuencia:
 
 ```{r}
-# Frecuencia de la variable VEHICLE_1:
 V1_cleaned <- data_sampled |> 
   count(VEHICLE_1, name = "FREQUENCY_V1") |>  
   arrange(desc(FREQUENCY_V1))
 
-# Frecuencia de la variable VEHICLE_1:
 V2_cleaned <- data_sampled |> 
   count(VEHICLE_2, name = "FREQUENCY_V2") |>  
   arrange(desc(FREQUENCY_V2))
@@ -556,10 +554,10 @@ Ahora vamos a graficar los tipos de vehículos y sus frecuencias para *VEHICLE_1
 
 ```{r, fig.width=13}
 V1_cleaned |> 
-  filter(FREQUENCY_V1 > 3) |> 
+  filter(FREQUENCY_V1 > 5) |> 
   ggplot(aes(x = reorder(VEHICLE_1, FREQUENCY_V1), y = FREQUENCY_V1)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
-  coord_flip() +  # Rota el gráfico para mejor visualización
+  coord_flip() +
   labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
        x = "Vehículos",
        y = "Frecuencia") +
@@ -571,12 +569,14 @@ V1_cleaned |>
         legend.title = element_blank()
         )
 ```
+Hemos mostrado solamente los vehiculos que tienen una frecuencia de almenos 5, ya que los inferiores generalmente se tratan de errores de tipografía, y por no extender en exceso el gráfico.
+
 
 De manera similar, mostramos la segunda variable:
 
 ```{r, fig.width=13}
 V2_cleaned |> 
-  filter(FREQUENCY_V2 > 3, VEHICLE_2 != '') |> 
+  filter(FREQUENCY_V2 > 5, VEHICLE_2 != '') |> 
   ggplot(aes(x = reorder(VEHICLE_2, FREQUENCY_V2), y = FREQUENCY_V2)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
   coord_flip() +  # Rota el gráfico para mejor visualización
@@ -591,91 +591,88 @@ V2_cleaned |>
         legend.title = element_blank()
         )
 ```
-
-Dado que en ambas variables había vehículos con una frecuencia de aparición menor o igual a 3, consideramos que no era relevante incluirlos en el gráfico, ya que dificultaban su interpretación.
+En ambos casos observamos que el vehículo más implicado son los coches Sedan habituales como cabía esperar, y va bajando el número drásticamente al resto de tipos de vehículos.
 
 # METODOLOGÍA MULTIVARIANTE
 
 ## PCA
 
-Vamos a realizar un análisis de componentes principales (PCA) para reducir la dimensionalidad de los datos y ver si podemos encontrar patrones en los datos. Sin embargo, lo primero que vamos hacer es comprobar si tiene sentido hacer un pca con los datos numéricos que tenemos. Aunque en la matriz de correlación ya hemos visto que no hay correlaciones significativas en los datos, vamos a comprobar mediante estadísticos si los datos son adecuados para realizar un PCA.
+Vamos a realizar un análisis de componentes principales (PCA) para reducir la dimensionalidad de los datos y ver si podemos encontrar patrones en los datos. Sin embargo, lo primero que vamos hacer es comprobar si tiene sentido hacer un pca con los datos numéricos que tenemos, ya que no tenemos demasiadas variables y ya hemos visto que son enteras y sin normalidad. Además en la matriz de correlación ya hemos visto que no hay correlaciones significativas en los datos, lo cual puede complicarnoss realizar las combinaciones para reducir el número de componentes.
 
-Realizar el test de KMO y la prueba de esfericidad de Bartlett para comprobar si los datos son adecuados para realizar un PCA:
+Sin embargo, para tomar la decisión con un criterio más preciso, hemos decidido aplicar las metodologías de adecuación de la muestra que vimos para el análisis factorial mediante el test de KMO. Nos puede dar una idea también al trabajar con PCA, ya que también necesitamos correlación entre las variables, y explicar una parte significativa de la varianza en ambos métodos.
 
-1.  Test de KMO: El test de KMO mide la adecuación de los datos para realizar un PCA. Un valor de KMO mayor a 0.6 indica que los datos son adecuados para realizar un PCA.
-
+Aplicamos el test de KMO sobre las variables numéricas. Un valor menor o igual a 0.5 indica que los datos no son adecuados:
 ```{r}
 datos_numeric <- data_sampled |> 
-  dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
-         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+  dplyr::select(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
 
 KMO(datos_numeric)
-
 ```
+Observamos el valor MSA general es de 0.47, por lo que no parece interesante realizar un PCA tal y como intuíamos. Sin embargo, vamos a realizar un gráfico de PCA sobre las dos componentes principales, para ver si aun así podemos extraer algún comportamiento interesante.
 
-Observamos que todas las variables tienen un KMO menor a 0.6, por lo que no es interesante realizar un PCA.
+```{r,message=FALSE, warning=FALSE}
+datos_pca <- data_sampled |> 
+  select(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
 
-2.  Test de esfericidad de Bartlett:
+pca_result <- prcomp(datos_pca, center = TRUE, scale. = TRUE)
+
+fviz_pca_var(pca_result, repel = TRUE, labelsize = 3, col.var = "contrib") +
+  scale_color_viridis(option = "C", direction = -1) +
+  theme_nyc()
+```
+Observamos que usando dos componentes, el porcentaje de variabilidad explicada apenas supera el 35%, lo cual no es lo ideal. Podemos extraer que las variables de heridos contribuyen mucho más significativamente que las variables sobre fallecidos. También podemos observar que el número de motoristar heridos y fallecidos van en la misma dirección, lo que propone que a mayor numero de heridos mayor número de fallecidos. En cuanto a las otras variables, observamos que toman la dirección más opuesta posible, lo que nos indica que la correlación entre ellas es la mínima posible. Debido a esto también la variabilidad explicada con dos componentes es tan baja.
+
+Vamos a mostrar el gráfico de la varianza explicada por cada componente, para ver como va creciendo hasta el 100% que se dará con las 6 variables:
+
+```{r,message=FALSE, warning=FALSE}
+pca_summary <- summary(pca_result)
+
+var_exp_cum <- pca_summary$importance[3, ] * 100
+
+data.frame(Componente = 1:length(var_exp_cum),
+           Varianza_Acumulada = var_exp_cum) %>%
+  ggplot(aes(x = Componente, y = Varianza_Acumulada)) +
+  geom_bar(stat = "identity", fill = "steelblue", alpha = 0.6) +
+  geom_line(color = "red", size = 1) +
+  geom_point(color = "red", size = 3) +
+  labs(title = "Varianza acumulada explicada por cada componente",
+       x = "Componente Principal",
+       y = "Varianza acumulada (%)") +
+  theme_nyc()
+```
+Podemos observar que prácticamente todas las componentes aportan la misma cantidad de variabilidad explicada, debido a que no hay correlacion entre las variables como hemos observado antes. Además, observamos que con 5 componentes apenas llegamos al 85% de variabilidad explicada, por lo que una vez más no parece que podamos reducir la dimensionalidad de forma efectiva mediante pCA, ya que perderíamos demasiada información.
+
+Por último, vamos a probar si es interesante analizar la posibilidad de realizar PCA separando las variables por heridos y muertos en lugar de todos juntos. Realizaremos el test de KMO del mismo modo que ahora, para ver si en estos casos sería interesante con dicha muestra.
+
+### PCA con heridos
 
 ```{r}
-cortest.bartlett(cor(datos_numeric), n = nrow(datos_numeric))
-```
-
-El test de esfericidad de Bartlett acepta (p-valor\<0.05) la hipótesis nula de que la matriz de correlación es una matriz identidad. Por lo tanto, los datos se encuentran correlados.
-
-En conclusión, pese a que los datos, según el test de esfericidad de Bartlett se encuentran correlados, no es interesante realizar un PCA, ya que el KMO no es adecuado. Sin embargo, igual es interesante analizar la posibilidad de realizar PCA agrupando las variables por heridos y muertos.
-
-### PCA con variables agrupadas:
-
-#### PCA con heridos
-
-```{r}
-# Seleccionar solo las variables de personas heridas
 datos_heridos <- data_sampled |> 
-  dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, 
-         NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED)
+  dplyr::select(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED)
 
-# Escalar (normalizar) los datos
 datos_heridos_scaled <- scale(datos_heridos)
 
-```
-
-Igual que antes, analizamos la posibilidad de realizar un PCA con los datos agrupados. Para ello, vamos a realizar el test de KMO y la prueba de esfericidad de Bartlett.
-
-```{r}
-# Calcular KMO
 KMO(datos_heridos_scaled)
-
-# Test de Bartlett
-cortest.bartlett(cor(datos_heridos_scaled), n = nrow(datos_heridos_scaled))
-
 ```
 
-De manera similar al caso general, obtenemos que no es interesante realizar un PCA, pese a que los datos se encuentran relacionados (p-valor\<0.05 en el test de Bartlett) el KMO vuelve a rechazar la idea de realizar el PCA, obtenemos un valor muy por debajo de 0.6.
+De manera similar al caso general, obtenemos que no es interesante realizar un PCA,ya que el KMO vuelve a rechazar la idea de realizar el PCA, con el mismo valor de 0.47, inferior a 0.5.
 
 #### PCA con muertos
 
 ```{r}
-# Seleccionar solo las variables de personas muertas
-datos_muertos <- data_sampled |> 
-  dplyr::select(NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, 
-         NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+datos_heridos <- data_sampled |> 
+  dplyr::select(NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
 
-# Escalar (normalizar) los datos
-datos_muertos_scaled <- scale(datos_muertos)
+datos_heridos_scaled <- scale(datos_heridos)
+
+KMO(datos_heridos_scaled)
 ```
 
-Al igual que antes, analizamos la posibilidad de realizar un PCA con los datos agrupados. Para ello, vamos a realizar el test de KMO y la prueba de esfericidad de Bartlett.
+Y por último tampoco es interesante con los datos de solamente los fallecidos, obteniendose un KMO de 0.5. Como comentábamos al principio, son resultados esrables al ver la matriz de correlaciones y la forma de ser tan particular de nuestras variables numéricas, por lo que deberemos centrarnos en realizar otro tipo de técnicas más apropiadas a nuestro problema.
 
-```{r}
-# Calcular KMO
-KMO(datos_muertos_scaled)
-
-# Test de Bartlett
-cortest.bartlett(cor(datos_muertos_scaled), n = nrow(datos_muertos_scaled))
-```
-
-De nuevo, obtenemos la misma conclusión que en los dos casos anteriores. Por lo tanto, no es interesante realizar un PCA con los datos agrupados.
+Además, teniendo en cuenta estos valores en los test de KMO, no vamos a considerar tampoco la posibilidad de realizar un análisis factorial, ya que KMO esindicador de que no es apropiado.
 
 
 ## Clusterizaciones
