@@ -45,7 +45,7 @@ library(patchwork)
 Jon:
 
 ```{r}
-#data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
+data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
 ```
 
 Rubén:
@@ -57,7 +57,7 @@ Rubén:
 Fermin:
 
 ```{r}
-data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+# data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
 # INTRODUCCION
@@ -370,6 +370,8 @@ data_time |>
 ```
 Aqui observamos el mismo patrón de frecuencia que hemos analizado anteriormente, donde baja drásticamente a partir del covid. Además, parece que el comportamiento de todos los distritos es similar, y aumentan o disminuyen de manera correlacionada. También parece que el distrito del Bronx no disminuye tanto la frecuencia a partir de 2020, mostrándose por encima de Manhattan varias veces. También podemos observar como Manhattan era el distrito con mayor frecuencia hasta 2016, y desde 2017 hasta 2020 cede ese puesto a Brooklyn y Queens.
 
+Por otrol lado, también podemos observar como Staten Island es el barrio que menos accidentes tiene, y además es el que menos ha disminuido la frecuencia a partir de 2020. Esto puede ser debido a que es un barrio más residencial, con menos tráfico y con menos pobalción, por lo que los accidentes son menos frecuentes.
+
 
 ## Variables 'LATITUDE' y 'LONGITUDE':
 
@@ -515,7 +517,7 @@ causes_cleaned <- data_sampled |>
 
 Nos ayudamos de un gráfico de barras para mostrar las frecuencias.
 
-```{r, fig.width=13}
+```{r, fig.width=13, warning=FALSE}
 causes_cleaned |> 
   ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
@@ -523,13 +525,7 @@ causes_cleaned |>
   labs(title = "Frecuencia de Factores Contribuyentes de los Accidentes",
        x = "Causas del Accidente",
        y = "Frecuencia") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
-        axis.title = element_text(size=10),
-        title = element_text(size=12),
-        axis.title.x=element_blank(),
-        legend.title = element_blank()
-        )
+  theme_nyc()
 ```
 
 Se observa que una gran parte de los accidentes se debe a distracciones. Además, aunque existen otras causas con una frecuencia significativa, muchas de las causas menos comunes apenas concentran accidentes. Esto sugiere la posibilidad de aplicar un análisis de agrupamiento (clustering) en el futuro, con el objetivo de reducir y simplificar el número de causas en grupos más representativos.
@@ -551,7 +547,7 @@ V2_cleaned <- data_sampled |>
 
 Ahora vamos a graficar los tipos de vehículos y sus frecuencias para *VEHICLE_1* y *VEHICLE_2*. Para ello, vamos a usar un gráfico de barras. Comenzamos con la primera variable:
 
-```{r, fig.width=13}
+```{r, fig.width=13, warning=FALSE}
 V1_cleaned |> 
   filter(FREQUENCY_V1 > 5) |> 
   ggplot(aes(x = reorder(VEHICLE_1, FREQUENCY_V1), y = FREQUENCY_V1)) + 
@@ -560,20 +556,14 @@ V1_cleaned |>
   labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
        x = "Vehículos",
        y = "Frecuencia") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
-        axis.title = element_text(size=10),
-        title = element_text(size=12),
-        axis.title.x=element_blank(),
-        legend.title = element_blank()
-        )
+  theme_nyc()
 ```
 
 Hemos mostrado solamente los vehiculos que tienen una frecuencia de almenos 5, ya que los inferiores generalmente se tratan de errores de tipografía, y por no extender en exceso el gráfico.
 
 De manera similar, mostramos la segunda variable:
 
-```{r, fig.width=13}
+```{r, fig.width=13, warning=FALSE}
 V2_cleaned |> 
   filter(FREQUENCY_V2 > 5, VEHICLE_2 != '') |> 
   ggplot(aes(x = reorder(VEHICLE_2, FREQUENCY_V2), y = FREQUENCY_V2)) + 
@@ -582,13 +572,7 @@ V2_cleaned |>
   labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
        x = "Vehículos",
        y = "Frecuencia") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle=60, hjust=1,size=6),
-        axis.title = element_text(size=10),
-        title = element_text(size=12),
-        axis.title.x=element_blank(),
-        legend.title = element_blank()
-        )
+  theme_nyc()
 ```
 
 En ambos casos observamos que el vehículo más implicado son los coches Sedan habituales como cabía esperar, y va disminuyendo el número drásticamente al resto de tipos de vehículos.
@@ -621,7 +605,7 @@ datos_pca <- data_sampled |>
 pca_result <- prcomp(datos_pca, center = TRUE, scale. = TRUE)
 
 fviz_pca_var(pca_result, repel = TRUE, labelsize = 3, col.var = "contrib") +
-  scale_color_viridis(option = "C", direction = -1) +
+  scale_color_viridis(option = "C") +
   theme_nyc()
 ```
 
@@ -717,7 +701,7 @@ Según el método del codo, lo más interesante sería probar hacer un clúster 
 
 #### 3. Realizar el clustering y visualizar:
 
-```{r}
+```{r, warning=FALSE}
 set.seed(123)
 kmeans_result <- kmeans(data_scaled, centers = 6, nstart = 25)
 
@@ -726,7 +710,8 @@ fviz_cluster(kmeans_result, data = data_scaled,
              ellipse.type = "norm",
              geom = "point",
              palette = "jco",
-             ggtheme = theme_minimal())
+             ggtheme = theme_minimal()) +
+  theme_nyc()
 
 ```
 
@@ -779,16 +764,28 @@ data_scaled <- data_borough_sum |>
 
 Clustering jerárquico:
 
-```{r}
+```{r, warning=FALSE}
 dist_matrix <- dist(data_scaled)
 hc <- hclust(dist_matrix, method = "complete")
 
 # Dendrograma
-plot(hc, labels = data_borough_sum$BOROUGH, main = "Dendrograma de barrios (suma total)")
-rect.hclust(hc, k = 3, border = "blue")  # Prueba con k = 2, 3, 4, etc.
-```
+dend <- as.dendrogram(hc)
+dend <- color_branches(dend, k = 3)
+dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])
 
-Añadir un gráfico de barras comparando las variables entre los clústeres.
+factoextra::fviz_dend(
+  dend,
+  k = 3,
+  horiz = TRUE,
+  rect = TRUE,
+  rect_border = "#1F3B73",
+  rect_fill = FALSE,
+  main = "Dendrograma de los Distritos",
+  cex = 0.7,
+  color_labels_by_k = TRUE,
+) + 
+theme_nyc()
+```
 
 El análisis de clúster jerárquico aplicado a los distritos de Nueva York ha dado como resultado una agrupación en tres clústeres bien diferenciados: por un lado, se agrupan el Bronx y Manhattan; por otro, Brooklyn y Queens; y finalmente, Staten Island queda separado en un grupo propio. Esta clasificación cobra sentido cuando se analiza en función de la densidad de población de cada distrito.
 
@@ -824,13 +821,13 @@ data_borough_long <- data_borough_sum |>
 
 3. Creamos el gráfico de barras:
 
-```{r}
+```{r, warning=FALSE}
 ggplot(data_borough_long, aes(x = Variable, y = Total, fill = cluster)) +
   geom_col(position = "dodge") +
   facet_wrap(~BOROUGH) +
   labs(title = "Comparación de heridos y muertos por clúster y barrio",
        x = "Variable", y = "Total", fill = "Clúster") +
-  theme_minimal()
+  theme_nyc()
 
 ```
 
@@ -838,44 +835,82 @@ Este gráfico demuestra que nuestra hipótesis anterior tiene sentido, ya que el
 
 Por último, añadiremos el shilouette para comprobar si nuestra disposición del clúster es buena o no:
 
-```{r}
-# Calcular silueta
-sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+```{r, warning=FALSE}
+clusters <- cutree(hc, k = 3)
 
-# Graficar con estilo personalizado:
-fviz_silhouette(sil) +
-  ggtitle(paste("Índice de Silueta para k = 3")) +
-  theme_minimal()
+dist_matrix <- dist(data_borough_sum[, c("total_injured", "total_killed")])
+
+sil <- silhouette(clusters, dist_matrix)
+rownames(sil) <- data_borough_sum$BOROUGH
+
+fviz_silhouette(sil) + 
+  ggtitle(paste("Índice de Silueta para k =", k)) +
+  theme_nyc()
 ```
 
 El análisis de la silueta respalda en buena medida la clasificación obtenida. Los grupos formados por el Bronx junto a Manhattan, y Brooklyn junto a Queens, muestran una estructura muy sólida: sus valores de silueta son claramente altos, lo que indica que los distritos dentro de cada clúster se parecen mucho entre sí y están bien separados de los demás. Esto refuerza la idea de que ambos grupos tienen sentido, tanto desde un punto de vista numérico como contextual.
 
-Sin embargo, Staten Island, que ha quedado como un clúster independiente, presenta una silueta bastante más baja —incluso negativa—. Esto quiere decir que, aunque por sus características es razonable considerarlo un caso aparte, los datos no lo separan de forma tan clara como ocurre con los otros clústeres. Aun así, teniendo en cuenta su baja densidad de población y su configuración más suburbana, parece justificado mantenerlo como un grupo propio. Este contraste entre lo que dicen los números y lo que observamos en la realidad muestra lo útil que es combinar el análisis estadístico con la interpretación del contexto para entender mejor los resultados.
+Sin embargo, Staten Island, que ha quedado como un clúster independiente, presenta una silueta bastante más baja, de 0. Esto quiere decir que, aunque por sus características es razonable considerarlo un caso aparte, los datos no lo separan de forma tan clara como ocurre con los otros clústeres. Aun así, teniendo en cuenta su baja densidad de población y su configuración más suburbana, parece justificado mantenerlo como un grupo propio. Este contraste entre lo que dicen los números y lo que observamos en la realidad muestra lo útil que es combinar el análisis estadístico con la interpretación del contexto para entender mejor los resultados.
 
 ### Análisis Cluster Jerárquico variable 'CAUSE':
 
-Vamos a realizar una clusterización de los diferentes factores contribuyentes al accidente. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
+En cuanto a la variable CAUSE, correspondiente a los factores contribuyentes al accidente, nos ha parecido interesante aplicar también clusterización ya que tenemos muchas de ellas y de esta forma veremos si conseguimos reducirlas a un número razonable. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
 
-Establecemos similitudes entre los nombres de las causas, mediante una matriz de distancias que representa la distancia entre las diferentes causas según su similitud.
+Establecemos similitudes entre los nombres de las causas, mediante una matriz de distancias que representa la distancia entre las diferentes causas según su similitud. Para ello lo hacemos mediante el metodo de "cosine" ya que se basa en frecuencia de caracteres y es bueno si las cadenas comparten subcadenas similares. 
 
 
 ```{r}
 # Crear matriz de distancias entre nombres de causas
-dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")  
+dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "cosine")  
 
-# método Jaro-Winkler, o "lv" para Levenshtein
 rownames(dist_matrix) <- causes_cleaned$CAUSE
 colnames(dist_matrix) <- causes_cleaned$CAUSE
 ```
 
 
-Clustering jerarquico
+Para aplicar clustering jerarquico, tomamos como método el "complete", que es una medida más conservadora. También hacemos un test de gap para que nos proporcione el mejor valor de k.
 
 ```{r, warning=FALSE}
-hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
+hc <- hclust(as.dist(dist_matrix), method = "complete")
 
-k <- 8
+fviz_nbclust(as.matrix(dist_matrix), FUN = hcut, method = "gap_stat", diss = TRUE)
 
+```
+El test nos dice que el valor óptimo es k = 2.
+Ahora vamos a realizar el clustering jerárquico y graficar los resultados, junto a la silueta para ver que tal realiza la clusterización:
+
+```{r, message=FALSE, warning=FALSE}
+k <- 2
+fviz_dend(x = hc,
+          k = k,
+          k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", 
+                       "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
+          color_labels_by_k = TRUE,
+          rect = TRUE,
+          rect_fill = TRUE,
+          cex = 0.5,
+          main = "Dendrograma - ward",
+          xlab = "observaciones",
+          ylab = "distancia",
+          sub = "") +
+  theme_nyc()
+
+clusters <- cutree(hc, k = k)
+
+# Calcular silueta
+sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+
+# Graficar con estilo personalizado
+fviz_silhouette(sil) +
+  ggtitle(paste("Índice de Silueta para k =", k)) +
+  theme_nyc()
+```
+Aunque el método del Gap statistic sugiere que k = 2 es óptimo, la silueta indica que la calidad del agrupamiento es baja. Esto sugiere que las causas no están bien separadas en dos grupos distintos. Sin embargo, esto también puede ser un reflejo de la complejidad y diversidad de las causas de los accidentes, lo que hace difícil encontrar una separación clara entre ellas.
+
+Ahora vamos a probar con un valor de k = 9, que en el test de gap nos daba el valor más alto, a ver si conseguimos una mejor separación entre las causas. Esto nos permitirá ver si hay patrones más claros en los datos y si podemos agrupar las causas de manera más efectiva.
+
+```{r, message=FALSE, warning=FALSE}
+k <- 9
 fviz_dend(x = hc,
           k = k,
           k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
@@ -886,15 +921,9 @@ fviz_dend(x = hc,
           main = "Dendrograma - ward",
           xlab = "observaciones",
           ylab = "distancia",
-          sub = "")
+          sub = "") +
+  theme_nyc()
 
-```
-
-Para un valor de k = 8, es decir, agrupar las causas en 8 grupos, se pueden observar cosas interesantes. En primer lugar, hemos conseguido reducir el número de causas de 52 a 8, lo que nos permite simplificar el análisis. Además, hemos agrupado causas similares entre sí, lo que nos permite ver patrones en los datos. Por ejemplo, el grupo 2 (naranja), prácticamente todas son debido a un defecto, ya sea en el pavimento, los frenos... En general, en todos los grupos hay causas relacionadas.
-
-Vamos a graficar las siluetas para ver que tal realiza la clusterización:
-
-```{r, warning=FALSE}
 clusters <- cutree(hc, k = k)
 
 # Calcular silueta
@@ -903,20 +932,9 @@ sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
 # Graficar con estilo personalizado
 fviz_silhouette(sil) +
   ggtitle(paste("Índice de Silueta para k =", k)) +
-  theme_minimal(base_family = "Roboto Condensed") +
-  theme(
-    plot.background = element_rect(fill = "#F4F4F4", color = NA),
-    panel.background = element_rect(fill = "#F4F4F4", color = NA),
-    plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
-    axis.text = element_text(color = "#2E2E2E", size = 10),
-    axis.title = element_text(color = "#2E2E2E", size = 11),
-    panel.grid.major = element_line(color = "#CCCCCC"),
-    panel.grid.minor = element_blank()
-  )
+  theme_nyc()
 ```
-
-Seguún este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
-
+Según este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
 
 ## Análisis discriminante
 
