@@ -13,6 +13,10 @@ library(dplyr)
 library(tsibble)
 library(DT)
 library(stringdist)
+library(plotly)
+library(ggiraph)
+library(gdtools)
+library(gfonts)
 
 data_sampled <- read.csv("data_sampled.csv")
 
@@ -73,7 +77,7 @@ theme_nyc <- function() {
       panel.background = element_rect(fill = "#F4F4F4", color = NA),
       panel.grid.major = element_line(color = "#DADADA"),
       panel.grid.minor = element_blank(),
-      axis.title = element_text(color = "#2E2E2E", face = "bold"),
+      axis.title = element_text(color = "#2E2E2E", size = 12, face = "bold"),
       axis.text = element_text(color = "#2E2E2E"),
       plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5),
       plot.subtitle = element_text(color = "#2E2E2E", hjust = 0.5),
@@ -198,7 +202,7 @@ ui <- tagList(
                    condition = "input.main_view_viz == 'freq_bar'",
                    tabsetPanel(
                      tabPanel('Distribución por Distrito', plotOutput('accident_borough')),
-                     tabPanel('Evolución por Distrito', plotOutput('accident_evolution'))
+                     tabPanel('Evolución por Distrito', plotlyOutput("accident_evolution"))
                    )
                  ),
                  
@@ -397,7 +401,7 @@ ui <- tagList(
           }
         ")),
             fluidRow(
-              column(6, plotOutput("ca_biplot", height = "500px")),
+              column(6, plotlyOutput("ca_biplot", height = "500px")),
               column(6, plotOutput("ca_contrib", height = "500px"))
             )
           )
@@ -687,23 +691,57 @@ server <- function(input, output, session) {
       theme_nyc()
   })
   
-  # Gráfico de evolución por barrio
-  output$accident_evolution <- renderPlot({
+  output$accident_evolution <- renderPlotly({
     df <- filtered_data_freq()
-    if (is.null(df)) return()
+    if (is.null(df)) return(NULL)
     
     df_agg <- df |>
       group_by(DATE = floor_date(DATE, "month"), BOROUGH) |>
       summarise(accidents = sum(FREQ_DAY, na.rm = TRUE), .groups = "drop")
     
-    ggplot(df_agg, aes(x = DATE, y = accidents, color = BOROUGH)) +
-      geom_line(size = 1.1) +
-      geom_point(size = 1.5) +
-      labs(title = "Evolución Temporal de Accidentes por Distrito",
-           x = "Fecha", y = "Número de Accidentes", color = "Distrito") +
-      theme_nyc() +
-      scale_color_brewer(palette = "Set1")
+    p <- plot_ly(df_agg,
+                 x = ~DATE,
+                 y = ~accidents,
+                 color = ~BOROUGH,
+                 colors = "Dark2",  # paleta más oscura
+                 type = 'scatter',
+                 mode = 'lines+markers',
+                 line = list(width = 2),
+                 marker = list(size = 6)) |>
+      layout(
+        title = list(
+          text = "<b>Evolución Temporal de Accidentes por Distrito</b>",
+          font = list(color = "#1F3B73", size = 16, family = "Roboto Condensed"),
+          x = 0.5
+        ),
+        xaxis = list(
+          title = list(text = "<b>Fecha<b>", font = list(color = "#2E2E2E", family = "Roboto Condensed", size = 12)),
+          tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+          gridcolor = "#DADADA"
+        ),
+        yaxis = list(
+          title = list(text = "<b>Número de Accidentes<b>", font = list(color = "#2E2E2E", family = "Roboto Condensed", size = 12)),
+          tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+          gridcolor = "#DADADA"
+        ),
+        legend = list(
+          orientation = "h",
+          x = 0.5,
+          xanchor = "center",
+          y = -0.2,
+          title = list(text = "Distrito", font = list(color = "#2E2E2E", family = "Roboto Condensed")),
+          font = list(color = "#2E2E2E", family = "Roboto Condensed"),
+          bgcolor = "#F4F4F4"
+        ),
+        plot_bgcolor = "#F4F4F4",
+        paper_bgcolor = "#F4F4F4"
+      )
+    
+    p
   })
+  
+  
+  
   
   
   # Texto resumen
@@ -858,7 +896,7 @@ server <- function(input, output, session) {
     dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])
     
     # Dibujar dendrograma con estilo y rectángulos (si se selecciona)
-    p <- factoextra::fviz_dend(
+    factoextra::fviz_dend(
       dend,
       k = input$k_dis,
       horiz = TRUE,
@@ -868,18 +906,8 @@ server <- function(input, output, session) {
       main = "Dendrograma de los Distritos",
       cex = 0.7,
       color_labels_by_k = TRUE,
-    )
-    
-    p + theme_minimal(base_family = "Roboto Condensed") +
-      theme(
-        plot.background = element_rect(fill = "#F4F4F4", color = NA),
-        panel.background = element_rect(fill = "#F4F4F4", color = NA),
-        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
-        axis.text = element_text(color = "#2E2E2E", size = 10),
-        axis.title = element_text(color = "#2E2E2E", size = 11),
-        panel.grid.major = element_line(color = "#CCCCCC"),
-        panel.grid.minor = element_blank()
-      )
+    ) + 
+    theme_nyc()
   })
   
   
@@ -924,7 +952,7 @@ server <- function(input, output, session) {
     # Visualizar el índice de silueta con fviz_silhouette
     fviz_silhouette(silhouette(clusters, dist_matrix)) + 
       ggtitle(paste("Índice de Silueta para k =", k)) +
-      theme_nyc()  # Usar el tema 'ny_theme' también en los gráficos
+      theme_nyc()
   })
   
   # ELEMENTOS PARA EL ANÁLISIS JERÁRQUICO DE CAUSAS:
@@ -956,16 +984,7 @@ server <- function(input, output, session) {
       ylab = "Distancia",
       sub = ""
     ) +
-      theme_minimal(base_family = "Roboto Condensed") +
-      theme(
-        plot.background = element_rect(fill = "#F4F4F4", color = NA),
-        panel.background = element_rect(fill = "#F4F4F4", color = NA),
-        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
-        axis.text = element_text(color = "#2E2E2E", size = 9),
-        axis.title = element_text(color = "#2E2E2E", size = 11),
-        panel.grid.major = element_line(color = "#CCCCCC"),
-        panel.grid.minor = element_blank()
-      )
+      theme_nyc()
   })
   
   output$silhouette_plot_causes <- renderPlot({
@@ -984,16 +1003,7 @@ server <- function(input, output, session) {
     # Graficar con estilo personalizado
     fviz_silhouette(sil) +
       ggtitle(paste("Índice de Silueta para k =", k)) +
-      theme_minimal(base_family = "Roboto Condensed") +
-      theme(
-        plot.background = element_rect(fill = "#F4F4F4", color = NA),
-        panel.background = element_rect(fill = "#F4F4F4", color = NA),
-        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
-        axis.text = element_text(color = "#2E2E2E", size = 10),
-        axis.title = element_text(color = "#2E2E2E", size = 11),
-        panel.grid.major = element_line(color = "#CCCCCC"),
-        panel.grid.minor = element_blank()
-      )
+      theme_nyc()
   })
   
   
@@ -1069,26 +1079,56 @@ server <- function(input, output, session) {
     FactoMineR::CA(tab, graph = FALSE)
   })
   
-  output$ca_biplot <- renderPlot({
+  output$ca_biplot <- plotly::renderPlotly({
     req(ca_result())
     
-    factoextra::fviz_ca_biplot(
-      ca_result(),
-      repel = TRUE,
-      title = "Biplot del Análisis de Correspondencias",
-      col.row = "#1F3B73",  # Azul NYPD
-      col.col = "#FF4C4C"   # Rojo alerta
-    ) +
+    # Extraer los datos de coordenadas
+    ca_obj <- ca_result()
+    row_coord <- as.data.frame(ca_obj$row$coord)
+    col_coord <- as.data.frame(ca_obj$col$coord)
+    
+    row_coord$label <- rownames(row_coord)
+    col_coord$label <- rownames(col_coord)
+    
+    row_coord$type <- "Fila"
+    col_coord$type <- "Columna"
+    
+    biplot_data <- rbind(
+      data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+      data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+    )
+    
+    biplot_data$text_color <- ifelse(grepl("^\\d+$", biplot_data$label), "black", biplot_data$type)
+    
+    # Construir el gráfico con ggplot
+    p <- ggplot(biplot_data, aes(x = Dim1, y = Dim2, color = type, label = label)) +
+      geom_point(size = 2) +
+      geom_text(aes(label = label, color = text_color), vjust = 1.5, size = 3, show.legend = FALSE) +
+      labs(
+        title = "Biplot del Análisis de Correspondencias",
+        x = "Dim 1",
+        y = "Dim 2"
+      ) +
+      scale_color_manual(values = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C")) +
       theme_minimal(base_family = "Roboto Condensed") +
       theme(
         plot.background = element_rect(fill = "#F4F4F4", color = NA),
         panel.background = element_rect(fill = "#F4F4F4", color = NA),
-        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
-        axis.text = element_text(color = "#2E2E2E", size = 10),
-        axis.title = element_text(color = "#2E2E2E", size = 11),
-        panel.grid.major = element_line(color = "#CCCCCC"),
-        panel.grid.minor = element_blank()
+        panel.grid.major = element_line(color = "#DADADA"),
+        panel.grid.minor = element_blank(),
+        axis.title = element_text(color = "#2E2E2E", size = 8, face = "bold"),
+        axis.text = element_text(color = "#2E2E2E"),
+        plot.title = element_text(color = "#1F3B73", size = 12, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(color = "#2E2E2E", hjust = 0.5),
+        legend.background = element_rect(fill = "#F4F4F4"),
+        legend.key = element_rect(fill = "#F4F4F4"),
+        legend.text = element_text(color = "#2E2E2E"),
+        strip.background = element_rect(fill = "#FFD100"),
+        strip.text = element_text(color = "#2E2E2E", face = "bold")
       )
+    
+    # Convertir a gráfico interactivo
+    ggplotly(p, tooltip = "text")
   })
   
   
@@ -1108,16 +1148,7 @@ server <- function(input, output, session) {
     ggplot(df, aes(x = Dimension, y = Porcentaje)) +
       geom_bar(stat = "identity", fill = "#1F3B73") +
       labs(title = "Porcentaje de varianza explicada", y = "Porcentaje", x = NULL) +
-      theme_minimal(base_family = "Roboto Condensed") +
-      theme(
-        plot.background = element_rect(fill = "#F4F4F4", color = NA),
-        panel.background = element_rect(fill = "#F4F4F4", color = NA),
-        plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5, family = "Bebas Neue"),
-        axis.text = element_text(color = "#2E2E2E", size = 10),
-        axis.title = element_text(color = "#2E2E2E", size = 11),
-        panel.grid.major = element_line(color = "#CCCCCC"),
-        panel.grid.minor = element_blank()
-      )
+      theme_nyc()
   })
   
   

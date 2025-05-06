@@ -260,13 +260,13 @@ Tanto en el informe como en la app, hemos definido un tema personalizado con col
 
 ```{r}
 theme_nyc <- function() {
-  theme_minimal(base_family = "Arial") +
+  theme_minimal(base_family = "Roboto Condensed") +
     theme(
       plot.background = element_rect(fill = "#F4F4F4", color = NA),
       panel.background = element_rect(fill = "#F4F4F4", color = NA),
       panel.grid.major = element_line(color = "#DADADA"),
       panel.grid.minor = element_blank(),
-      axis.title = element_text(color = "#2E2E2E", face = "bold"),
+      axis.title = element_text(color = "#2E2E2E", size = 12, face = "bold"),
       axis.text = element_text(color = "#2E2E2E"),
       plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5),
       plot.subtitle = element_text(color = "#2E2E2E", hjust = 0.5),
