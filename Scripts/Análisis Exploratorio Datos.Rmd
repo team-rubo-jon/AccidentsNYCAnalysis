@@ -663,7 +663,7 @@ KMO(datos_heridos_scaled)
 
 De manera similar al caso general, obtenemos que no es interesante realizar un PCA, ya que el KMO vuelve a rechazar la idea de realizar el PCA, con el mismo valor de 0.47, inferior a 0.5.
 
-#### PCA con muertos
+### PCA con muertos
 
 ```{r}
 datos_heridos <- data_sampled |> 
@@ -911,7 +911,7 @@ fviz_silhouette(sil) +
   )
 ```
 
-Seguún este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
+Seguún este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos conviene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
 
 
 ## Análisis discriminante
