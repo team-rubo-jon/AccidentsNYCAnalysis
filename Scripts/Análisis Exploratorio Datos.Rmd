@@ -1,5 +1,5 @@
 ---
-title: "Análisis accidentes de tráfico NY"
+title: "Análisis Accidentes de Tráfico NY"
 author: "Jon Aguas, Fermín Fernandez y Rubén González"
 output:
   html_document:
@@ -160,14 +160,13 @@ type_injured <- data_cleaned |>
          NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
   pivot_longer(cols = everything(), names_to = 'TYPE_OF_INJURED', values_to = 'NUMBER')
 
-# quiero saber el total de de cada tipo
-
+# Calculamos el total de cada tipo:
 type_injured |> 
   group_by(TYPE_OF_INJURED) |> 
   summarise(NUMBER = sum(NUMBER)) |> 
   arrange(desc(NUMBER))
 
-# ahora mostramos los indices de los que no coinciden
+# Ahora mostramos los indices de los que no coinciden:
 filas_erroneas <- data_cleaned |> 
   dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
          NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
@@ -296,7 +295,7 @@ data_time <- data_sampled |>
   arrange(DATE)
 
 
-# Frecuendia de datos mensuales
+# Frecuencia de datos mensuales:
 data_time |> 
   group_by(DATE_MONTH) |>
   summarise(FREQ = sum(FREQ_MONTH, na.rm = TRUE), .groups = "drop") |>
@@ -307,7 +306,7 @@ data_time |>
     labs(title = "Frecuencia de Accidentes por Mes", x = "Fecha", y = "Frecuencia") +
     theme_nyc()
 
-# Frecuendia de datos mensuales
+# Frecuencia de datos anuales:
 data_time |> 
   group_by(DATE_YEAR) |>
   summarise(FREQ = sum(FREQ_YEAR, na.rm = TRUE), .groups = "drop") |>
@@ -341,7 +340,7 @@ En este gráfico observamos cuales son los meses que máyor frecuencia de accide
 
 ## Variable 'BOROUGH':
 
-En el siguiente apartado, vamos a tratar de ver la distribución de los accidentes por barrio, y su evolución con el paso del tiempo:
+En el siguiente apartado, vamos a tratar de ver la distribución de los accidentes por distrito, y su evolución con el paso del tiempo:
 
 ```{r, warning=FALSE}
 data_sampled |> 
@@ -351,12 +350,10 @@ data_sampled |>
   labs(title = "Distribución de Accidentes por Distrito",
        x = "Barrio", y = "Número de Accidentes") +
   theme_nyc()
-
 ```
-Observamos como Brooklyn Queens y Manhattan acumulan el mayor número de accidentes. Esto concuerda con que son los barrios más grandes y céntricos de Nueva York. Se observa como Bronx y State Island muestran una frecuencia mucho más inferior, ya que son barrios periféricos.
+Observamos como Brooklyn Queens y Manhattan acumulan el mayor número de accidentes. Esto concuerda con que son los distritos más grandes y céntricos de Nueva York. Se observa como Bronx y State Island muestran una frecuencia mucho más inferior, ya que son distritos periféricos.
 
-
-Vamos a ver la evolución de la frecuencia de accidentes por cada barrio:
+Vamos a ver la evolución de la frecuencia de accidentes por cada distritos:
 
 ```{r, warning=FALSE}
 data_time |>
@@ -365,20 +362,20 @@ data_time |>
   ggplot(aes(x = DATE, y = accidents, color = BOROUGH)) +
     geom_line(size = 1.1) +
     geom_point(size = 1.5) +
-    labs(title = "Evolución Temporal de Accidentes por Barrio",
-         x = "Fecha", y = "Número de Accidentes", color = "Barrio") +
+    labs(title = "Evolución Temporal de Accidentes por Distrito",
+         x = "Fecha", y = "Número de Accidentes", color = "Distrito") +
     theme_nyc() +
     scale_color_brewer(palette = "Set1") +
     theme(legend.position = "bottom")
 ```
-Aqui observamos el mismo patrón de frecuencia que hemos analizado anteriormente, donde baja drásticamente a partir del covid. Además, parece que el comportamiento de todos los barrios es similar, y aumentan o disminuyen de manera correlacionada. También parece que el barrio Bronx no disminuye tanto la frecuencia a partir de 2020, mostrándose por encima de manhattan varias veces.También podemos observar como Manhattan era el barrio con mayor frecuencia hasta 2016, y desde 2017 hasta 2020 cede ese puesto a Brooklyn y Queens.
+Aqui observamos el mismo patrón de frecuencia que hemos analizado anteriormente, donde baja drásticamente a partir del covid. Además, parece que el comportamiento de todos los distritos es similar, y aumentan o disminuyen de manera correlacionada. También parece que el distrito del Bronx no disminuye tanto la frecuencia a partir de 2020, mostrándose por encima de Manhattan varias veces. También podemos observar como Manhattan era el distrito con mayor frecuencia hasta 2016, y desde 2017 hasta 2020 cede ese puesto a Brooklyn y Queens.
 
 Por otrol lado, también podemos observar como Staten Island es el barrio que menos accidentes tiene, y además es el que menos ha disminuido la frecuencia a partir de 2020. Esto puede ser debido a que es un barrio más residencial, con menos tráfico y con menos pobalción, por lo que los accidentes son menos frecuentes.
 
 
 ## Variables 'LATITUDE' y 'LONGITUDE':
 
-En cuanto a las variables de Localización, al ser un dataset con datos geográficos uno de los análisis importantes que debemos hacer es situando los accidentes en su ubicación correspondiente. Esto nos permite ver como están distrubuidos en la ciudad los accidentes.
+En cuanto a las variables de localización, al ser un dataset con datos geográficos uno de los análisis importantes que debemos hacer es situando los accidentes en su ubicación correspondiente. Esto nos permite ver como están distrubuidos en la ciudad los accidentes.
 
 En primer lugar, representaremos cada accidente mediante un punto rojo:
 ```{r, results='asis', echo=FALSE}
@@ -396,7 +393,7 @@ data_sampled |>
   )
 ```
 
-Observamos como prácticamente la totalidad del mapa queda cubierta de punto rojos, si bien es cierto que en barrios como Staten Island se aprecia menos densidad, tal y como intuíamos de los histogramas realizados previamente.
+Observamos como prácticamente la totalidad del mapa queda cubierta de punto rojos, si bien es cierto que en distritos como Staten Island se aprecia menos densidad, tal y como intuíamos de los histogramas realizados previamente.
 
 Para tratar de ver algo más claro, vamos a representar un mapa de calor, en el que las zonas más calientes representan aquellos accidentes en los que ha habido heridos o fallecidos (que ponderan de forma más significativa):
 
@@ -415,9 +412,9 @@ leaflet(data_sampled) %>%
   )
 ```
 
-Este mapa ya nos proporciona información más interesante. Por un lado, podemos observar como aunque muchos accidentes se producen en Manhattan, no corresponde con una alta densidad de heridos o fallecidos como podría esperarse. esto se debe tal vez a que los accidentes son en ciudad a una baja velocidad.Sin embargo, en barrios como Staten Island observamos una amyor densidad de accidentes con heridos, pese a que era una de las zonas con menor frecuencia de accidentes.
+Este mapa nos ofrece información más relevante. Aunque Manhattan concentra un gran número de accidentes, no presenta una alta densidad de heridos o fallecidos, como cabría esperar. Esto podría deberse a que la mayoría de los siniestros ocurren a baja velocidad en zonas urbanas. En contraste, distritos como Staten Island muestran una mayor densidad de accidentes con heridos, a pesar de registrar una menor frecuencia total de accidentes.
 
-En la aplicación hemos desarrollado los mapas de forma interactiva, pudiendo aplicar diferentes filtros y intervalos de tiempo variables, para poder ver de una forma más clara y dinámica la evolución de los accidentes a lo largo del
+En la aplicación hemos desarrollado los mapas de forma interactiva, pudiendo aplicar diferentes filtros e intervalos de tiempo variables, para poder ver de una forma más clara y dinámica la evolución de los accidentes a lo largo del tiempo.
 
 
 ## Variables de Conteo de Personas Afectadas:
@@ -464,7 +461,8 @@ Ahora, podemos comprobar el número de peatones, ciclistas y motoristas que han 
 En este gráfico observamos que en general, la frecuencia de heridos es mucho mayor respecto a fallecidos (6472 frente a 23). También observamos que el grupo más vulnerable son los motoristas, tanto en cuanto a heridos como a fallecidos se refiere. Seguidos de los peatones y ciclistas. Si bien, considerando que el número de ciclistas es muy inferior al de peatones, y apenas son la mitad de heridos, tal vez podríamos decir que ser ciclista si que conlleva un mayor riesgo de resultar herido en proporción.
 
 
-Además, pese a ser variables enteras como son numéricas, puede ser interesante mostrar un histograma de cada una de ellas para ver si hay normalidad en los datos.:
+Además, pese a ser variables enteras, como son numéricas, puede ser interesante mostrar un histograma de cada una de ellas para ver si hay normalidad en los datos:
+
 ```{r, fig.width=15, message=FALSE, warning=FALSE}
 vars <- c(
   "NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED",
@@ -480,15 +478,15 @@ hist_list <- lapply(vars, function(var) {
 
 wrap_plots(hist_list, ncol = 4)
 ```
+
 Observamos como la distribución en todas las variables llega al máximo en el 0, y va reduciéndose drásticamente. Lo cual es comprensible ya que se trata del número de personas heridas en accidentes, y en los accidentes leves no suele haber ningún herido.
 
-Esto nos indica que no tenemos normalidad, lo cual habrá que tenerlo en cuenta a la hora de aplicar diferentes técnicas.
-
+Esto nos indica que no tenemos normalidad, lo cual habrá que tenerlo en cuenta a la hora de aplicar diferentes técnicas de análisis multivariante.
 
 En el siguiente apartado, veremos la matriz de correlaciones entre todas las variables de conteo de personas afectadas. Como no tenemos normalidad, aplicaremos la matriz de correlaciones de Spearman:
+
 ```{r, fig.width=15, message=FALSE, warning=FALSE}
 data_short <- data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED", "NUM_PERSONS_KILLED",   "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED")]
-
 
 colnames(data_short) <- c("Total Her.", "Peatones Her.", "Ciclistas Her.", "Motoristas Her.", "Total Fall.", "Peatones Fall.", "Ciclistas Fall.", "Motoristas Fall.")
 
@@ -501,6 +499,7 @@ ggpairs(
 ) +
   theme_nyc()
 ```
+
 En conclusión, la matriz de correlaciones solamente muestra relaciones fuertes entre variables agregadas y sus subcomponentes, como entre personas heridas y motoristas heridos (ya que dentro de personas heridas están los motoristas, y además hemos visto que es el tipo que más contribuye). Sin embargo esta correlación es evidente, y no aporta ninguna información de valor.
 
 En cuanto a las variables por separado sin datos repetidos, ninguna muestra correlación significativa con las demás, lo cual sugiere que no se comportan del mismo modo los tipos diferentes de implicados, y que no podemos explicar el número de heridos/fallecidos de ningún tipo basandónos en otro de los tipos.
@@ -529,12 +528,12 @@ causes_cleaned |>
   theme_nyc()
 ```
 
-Se observa como gran porcentaje de accidentes se deben a distracciones. También hay un número considerable de las siguientes causas, pero las causas que tienen una menor frecuencia, apenas tienen accidentes. Esto nos hace pensar en un posible agrupamiento en el futuro usando clusters, para tratar de reducir todas las posibles causas a un número más reducido.
+Se observa que una gran parte de los accidentes se debe a distracciones. Además, aunque existen otras causas con una frecuencia significativa, muchas de las causas menos comunes apenas concentran accidentes. Esto sugiere la posibilidad de aplicar un análisis de agrupamiento (clustering) en el futuro, con el objetivo de reducir y simplificar el número de causas en grupos más representativos.
 
 
 ## Variables 'VEHICLE_1' y 'VEHICLE_2':
 
-Por ultimo, analizaremos las variables correspondientes al tipo de vehículo primario y secundario implicados en el accidente. De forma similar a la varaible anterior, es una variable categórica, por lo que primero, vamos a crear una tabla para cada variable con su frecuencia:
+Por ultimo, analizaremos las variables correspondientes al tipo de vehículo principal y secundario implicados en el accidente. De forma similar a la variable anterior, es una variable categórica, por lo que primero vamos a crear una tabla para cada variable con su frecuencia:
 
 ```{r}
 V1_cleaned <- data_sampled |> 
@@ -559,8 +558,8 @@ V1_cleaned |>
        y = "Frecuencia") +
   theme_nyc()
 ```
-Hemos mostrado solamente los vehiculos que tienen una frecuencia de almenos 5, ya que los inferiores generalmente se tratan de errores de tipografía, y por no extender en exceso el gráfico.
 
+Hemos mostrado solamente los vehiculos que tienen una frecuencia de almenos 5, ya que los inferiores generalmente se tratan de errores de tipografía, y por no extender en exceso el gráfico.
 
 De manera similar, mostramos la segunda variable:
 
@@ -575,17 +574,19 @@ V2_cleaned |>
        y = "Frecuencia") +
   theme_nyc()
 ```
-En ambos casos observamos que el vehículo más implicado son los coches Sedan habituales como cabía esperar, y va bajando el número drásticamente al resto de tipos de vehículos.
+
+En ambos casos observamos que el vehículo más implicado son los coches Sedan habituales como cabía esperar, y va disminuyendo el número drásticamente al resto de tipos de vehículos.
 
 # METODOLOGÍA MULTIVARIANTE
 
 ## PCA
 
-Vamos a realizar un análisis de componentes principales (PCA) para reducir la dimensionalidad de los datos y ver si podemos encontrar patrones en los datos. Sin embargo, lo primero que vamos hacer es comprobar si tiene sentido hacer un pca con los datos numéricos que tenemos, ya que no tenemos demasiadas variables y ya hemos visto que son enteras y sin normalidad. Además en la matriz de correlación ya hemos visto que no hay correlaciones significativas en los datos, lo cual puede complicarnoss realizar las combinaciones para reducir el número de componentes.
+Vamos a realizar un análisis de componentes principales (PCA) para reducir la dimensionalidad de los datos y ver si podemos encontrar patrones en ellos. Sin embargo, lo primero que vamos hacer es comprobar si tiene sentido hacer un PCA con los datos numéricos que tenemos, ya que no existen demasiadas variables y ya hemos podido comprobar que no presentan normalidad. Además, en la matriz de correlación ya hemos visto que no hay correlaciones significativas en los datos, lo cual puede complicarnos realizar las combinaciones necesarias para reducir el número de componentes principales.
 
 Sin embargo, para tomar la decisión con un criterio más preciso, hemos decidido aplicar las metodologías de adecuación de la muestra que vimos para el análisis factorial mediante el test de KMO. Nos puede dar una idea también al trabajar con PCA, ya que también necesitamos correlación entre las variables, y explicar una parte significativa de la varianza en ambos métodos.
 
 Aplicamos el test de KMO sobre las variables numéricas. Un valor menor o igual a 0.5 indica que los datos no son adecuados:
+
 ```{r}
 datos_numeric <- data_sampled |> 
   dplyr::select(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
@@ -593,6 +594,7 @@ datos_numeric <- data_sampled |>
 
 KMO(datos_numeric)
 ```
+
 Observamos el valor MSA general es de 0.47, por lo que no parece interesante realizar un PCA tal y como intuíamos. Sin embargo, vamos a realizar un gráfico de PCA sobre las dos componentes principales, para ver si aun así podemos extraer algún comportamiento interesante.
 
 ```{r,message=FALSE, warning=FALSE}
@@ -606,9 +608,10 @@ fviz_pca_var(pca_result, repel = TRUE, labelsize = 3, col.var = "contrib") +
   scale_color_viridis(option = "C") +
   theme_nyc()
 ```
-Observamos que usando dos componentes, el porcentaje de variabilidad explicada apenas supera el 35%, lo cual no es lo ideal. Podemos extraer que las variables de heridos contribuyen mucho más significativamente que las variables sobre fallecidos. También podemos observar que el número de motoristar heridos y fallecidos van en la misma dirección, lo que propone que a mayor numero de heridos mayor número de fallecidos. En cuanto a las otras variables, observamos que toman la dirección más opuesta posible, lo que nos indica que la correlación entre ellas es la mínima posible. Debido a esto también la variabilidad explicada con dos componentes es tan baja.
 
-Vamos a mostrar el gráfico de la varianza explicada por cada componente, para ver como va creciendo hasta el 100% que se dará con las 6 variables:
+Observamos que usando dos componentes, el porcentaje de variabilidad explicada apenas supera el 35%, lo cual no es lo ideal. Podemos extraer que las variables de heridos contribuyen de una manera más significativa que las variables sobre fallecidos. También podemos observar que el número de motoristar heridos y fallecidos presentan la misma dirección, lo que propone que, a mayor numero de heridos, mayor número de fallecidos. En cuanto a las otras variables, observamos que toman la dirección más opuesta posible, lo que nos indica que la correlación entre ellas es la mínima posible. Estas conclusiones respaldan el hecho de que la variabilidad explicada por las componentes principales sea tan baja.
+
+Vamos a mostrar el gráfico de la varianza explicada por cada componente, para ver como va creciendo hasta el 100%, que se dará con las 6 variables:
 
 ```{r,message=FALSE, warning=FALSE}
 pca_summary <- summary(pca_result)
@@ -626,9 +629,10 @@ data.frame(Componente = 1:length(var_exp_cum),
        y = "Varianza acumulada (%)") +
   theme_nyc()
 ```
-Podemos observar que prácticamente todas las componentes aportan la misma cantidad de variabilidad explicada, debido a que no hay correlacion entre las variables como hemos observado antes. Además, observamos que con 5 componentes apenas llegamos al 85% de variabilidad explicada, por lo que una vez más no parece que podamos reducir la dimensionalidad de forma efectiva mediante pCA, ya que perderíamos demasiada información.
 
-Por último, vamos a probar si es interesante analizar la posibilidad de realizar PCA separando las variables por heridos y muertos en lugar de todos juntos. Realizaremos el test de KMO del mismo modo que ahora, para ver si en estos casos sería interesante con dicha muestra.
+Podemos observar que prácticamente todas las componentes aportan la misma cantidad de variabilidad explicada, debido a que no hay correlacion entre las variables como hemos observado antes. Además, observamos que con 5 componentes apenas llegamos al 85% de variabilidad explicada, por lo que una vez más no parece que podamos reducir la dimensionalidad de forma efectiva mediante PCA, ya que perderíamos demasiada información.
+
+Por último, vamos a comprobar si es interesante analizar la posibilidad de realizar PCA separando las variables por heridos y muertos en lugar de todos juntos. Realizaremos el test de KMO del mismo modo que ahora, para ver si en estos casos sería interesante con dicha muestra.
 
 ### PCA con heridos
 
@@ -641,7 +645,7 @@ datos_heridos_scaled <- scale(datos_heridos)
 KMO(datos_heridos_scaled)
 ```
 
-De manera similar al caso general, obtenemos que no es interesante realizar un PCA,ya que el KMO vuelve a rechazar la idea de realizar el PCA, con el mismo valor de 0.47, inferior a 0.5.
+De manera similar al caso general, obtenemos que no es interesante realizar un PCA, ya que el KMO vuelve a rechazar la idea de realizar el PCA, con el mismo valor de 0.47, inferior a 0.5.
 
 ### PCA con muertos
 
@@ -654,9 +658,9 @@ datos_heridos_scaled <- scale(datos_heridos)
 KMO(datos_heridos_scaled)
 ```
 
-Y por último tampoco es interesante con los datos de solamente los fallecidos, obteniendose un KMO de 0.5. Como comentábamos al principio, son resultados esrables al ver la matriz de correlaciones y la forma de ser tan particular de nuestras variables numéricas, por lo que deberemos centrarnos en realizar otro tipo de técnicas más apropiadas a nuestro problema.
+Y por último, tampoco es interesante con los datos de solamente los fallecidos, obteniendose un KMO de 0.5. Como comentábamos al principio, son resultados esperables al haber observado previamente la matriz de correlaciones y la naturaleza propia de nuestras variables numéricas, por lo que deberemos centrarnos en realizar otro tipo de técnicas más apropiadas a nuestro problema.
 
-Además, teniendo en cuenta estos valores en los test de KMO, no vamos a considerar tampoco la posibilidad de realizar un análisis factorial, ya que KMO esindicador de que no es apropiado.
+Es interesante mencionar que, teniendo en cuenta los valores obtenidos en los tests de KMO, no vamos a considerar tampoco la posibilidad de realizar un análisis factorial, ya que el resultado del test es un claro indicador de que no es apropiado.
 
 
 ## Clusterizaciones
