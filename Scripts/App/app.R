@@ -1082,7 +1082,6 @@ server <- function(input, output, session) {
   output$ca_biplot <- plotly::renderPlotly({
     req(ca_result())
     
-    # Extraer los datos de coordenadas
     ca_obj <- ca_result()
     row_coord <- as.data.frame(ca_obj$row$coord)
     col_coord <- as.data.frame(ca_obj$col$coord)
@@ -1098,38 +1097,48 @@ server <- function(input, output, session) {
       data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
     )
     
-    biplot_data$text_color <- ifelse(grepl("^\\d+$", biplot_data$label), "black", biplot_data$type)
+    biplot_data$text_color <- ifelse(grepl("^\\d+$", biplot_data$label), "black",
+                                     ifelse(biplot_data$type == "Fila", "#1F3B73", "#FF4C4C"))
     
-    # Construir el gráfico con ggplot
-    p <- ggplot(biplot_data, aes(x = Dim1, y = Dim2, color = type, label = label)) +
-      geom_point(size = 2) +
-      geom_text(aes(label = label, color = text_color), vjust = 1.5, size = 3, show.legend = FALSE) +
-      labs(
-        title = "Biplot del Análisis de Correspondencias",
-        x = "Dim 1",
-        y = "Dim 2"
-      ) +
-      scale_color_manual(values = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C")) +
-      theme_minimal(base_family = "Roboto Condensed") +
-      theme(
-        plot.background = element_rect(fill = "#F4F4F4", color = NA),
-        panel.background = element_rect(fill = "#F4F4F4", color = NA),
-        panel.grid.major = element_line(color = "#DADADA"),
-        panel.grid.minor = element_blank(),
-        axis.title = element_text(color = "#2E2E2E", size = 8, face = "bold"),
-        axis.text = element_text(color = "#2E2E2E"),
-        plot.title = element_text(color = "#1F3B73", size = 12, face = "bold", hjust = 0.5),
-        plot.subtitle = element_text(color = "#2E2E2E", hjust = 0.5),
-        legend.background = element_rect(fill = "#F4F4F4"),
-        legend.key = element_rect(fill = "#F4F4F4"),
-        legend.text = element_text(color = "#2E2E2E"),
-        strip.background = element_rect(fill = "#FFD100"),
-        strip.text = element_text(color = "#2E2E2E", face = "bold")
+    plot_ly(
+      data = biplot_data,
+      x = ~Dim1, y = ~Dim2,
+      type = 'scatter',
+      mode = 'markers+text',
+      text = ~label,
+      textposition = 'bottom center',
+      marker = list(size = 7),
+      color = ~type,
+      colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+      textfont = list(size = 12)
+    ) %>%
+      layout(
+        title = list(
+          text = "<b>Biplot del Análisis de Correspondencias<b>",
+          x = 0.5,
+          font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+        ),
+        xaxis = list(
+          title = list(text = "<b>Dim 1<b>", font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+          tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+          gridcolor = "#DADADA"
+        ),
+        yaxis = list(
+          title = list(text = "<b>Dim 2<b>", font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+          tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+          gridcolor = "#DADADA"
+        ),
+        plot_bgcolor = "#F4F4F4",
+        paper_bgcolor = "#F4F4F4",
+        legend = list(
+          bgcolor = "#F4F4F4",
+          bordercolor = "#F4F4F4",
+          font = list(color = "#2E2E2E", family = "Roboto Condensed")
+        )
       )
-    
-    # Convertir a gráfico interactivo
-    ggplotly(p, tooltip = "text")
   })
+  
+  
   
   
   
