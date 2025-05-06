@@ -7,6 +7,12 @@ output:
     toc: true
     toc_float: true
     number_sections: true
+    fig_width: 15
+    fig_height: 8
+    fig_align: center
+    df_print: paged
+  pdf_document:
+    toc: true
 ---
 
 ## Cargar librerías y lectura de datos:
@@ -34,6 +40,9 @@ library(tidygraph)
 library(ggraph)
 library(pROC)
 library(patchwork)
+library(dendextend)
+library(FactoMineR)
+library(plotly)
 ```
 
 ```{r}
@@ -265,9 +274,9 @@ theme_nyc <- function() {
       panel.background = element_rect(fill = "#F4F4F4", color = NA),
       panel.grid.major = element_line(color = "#DADADA"),
       panel.grid.minor = element_blank(),
-      axis.title = element_text(color = "#2E2E2E", size = 12, face = "bold"),
+      axis.title = element_text(color = "#2E2E2E", size = 16, face = "bold"),
       axis.text = element_text(color = "#2E2E2E"),
-      plot.title = element_text(color = "#1F3B73", size = 16, face = "bold", hjust = 0.5),
+      plot.title = element_text(color = "#1F3B73", size = 20, face = "bold", hjust = 0.5),
       plot.subtitle = element_text(color = "#2E2E2E", hjust = 0.5),
       legend.background = element_rect(fill = "#F4F4F4"),
       legend.key = element_rect(fill = "#F4F4F4"),
@@ -285,7 +294,6 @@ Vamos a hacer una representación dual, en la que combinamos el gráfico de barr
 
 ```{r, warning=FALSE}
 data_time <- data_sampled |>
-  mutate(DATE = as.Date(DATE, format = "%Y-%m-%d")) |>
   mutate(DATE_MONTH = yearmonth(DATE),
          DATE_YEAR = year(DATE)) |>
   add_count(DATE, name = "FREQ_DAY") |>
@@ -335,6 +343,7 @@ data_time |>
     labs(title = "Frecuencia de accidentes acumulada por mes", x = "Fecha", y = "Frecuencia") +
     theme_nyc()
 ```
+
 En este gráfico observamos cuales son los meses que máyor frecuencia de accidentes tienen. Observamos como a principios de verano es cuando más alta es la frecuencia (mayo, junio y julio) tal vez porque la gente se mueve más por el buen tiempo, pero aún teniendo que ir a trabajar. En agosto y septiembre se reduce la frecuencia, tal vez por el efecto de las vacaciones. Por otra parte, sin duda los meses de febrero (por tener 29 días) y abril (tal vez por ser el mes en el que más afecto el confinamiento de 2020) son los que menor frecuencia de accidentes tienen.
 
 
@@ -351,15 +360,16 @@ data_sampled |>
        x = "Barrio", y = "Número de Accidentes") +
   theme_nyc()
 ```
+
 Observamos como Brooklyn Queens y Manhattan acumulan el mayor número de accidentes. Esto concuerda con que son los distritos más grandes y céntricos de Nueva York. Se observa como Bronx y State Island muestran una frecuencia mucho más inferior, ya que son distritos periféricos.
 
 Vamos a ver la evolución de la frecuencia de accidentes por cada distritos:
 
 ```{r, warning=FALSE}
 data_time |>
-  group_by(DATE = floor_date(DATE, "month"), BOROUGH) |>
+  group_by(DATE_MONTH, BOROUGH) |>
   summarise(accidents = sum(FREQ_DAY, na.rm = TRUE), .groups = "drop") |> 
-  ggplot(aes(x = DATE, y = accidents, color = BOROUGH)) +
+  ggplot(aes(x = DATE_MONTH, y = accidents, color = BOROUGH)) +
     geom_line(size = 1.1) +
     geom_point(size = 1.5) +
     labs(title = "Evolución Temporal de Accidentes por Distrito",
@@ -378,7 +388,7 @@ Por otrol lado, también podemos observar como Staten Island es el barrio que me
 En cuanto a las variables de localización, al ser un dataset con datos geográficos uno de los análisis importantes que debemos hacer es situando los accidentes en su ubicación correspondiente. Esto nos permite ver como están distrubuidos en la ciudad los accidentes.
 
 En primer lugar, representaremos cada accidente mediante un punto rojo:
-```{r, results='asis', echo=FALSE}
+```{r, fig.width=8, fig.height=5, results='asis', echo=FALSE}
 data_sampled |> 
   leaflet() |> 
   addTiles() |> 
@@ -397,7 +407,7 @@ Observamos como prácticamente la totalidad del mapa queda cubierta de punto roj
 
 Para tratar de ver algo más claro, vamos a representar un mapa de calor, en el que las zonas más calientes representan aquellos accidentes en los que ha habido heridos o fallecidos (que ponderan de forma más significativa):
 
-```{r}
+```{r, fig.width=8, fig.height=5}
 leaflet(data_sampled) %>%
   addTiles() %>%
   setView(lng = -73.9, lat = 40.7128, zoom = 10) %>%
@@ -421,7 +431,7 @@ En la aplicación hemos desarrollado los mapas de forma interactiva, pudiendo ap
 
 Ahora, podemos comprobar el número de peatones, ciclistas y motoristas que han resultado heridos o muertos en los accidentes, junto al total de heridos y muertos:
 
-```{r, fig.width=15, warning=FALSE}
+```{r, warning=FALSE}
     datos_resumen <- data_sampled |> 
       summarise(
         Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
@@ -463,7 +473,7 @@ En este gráfico observamos que en general, la frecuencia de heridos es mucho ma
 
 Además, pese a ser variables enteras, como son numéricas, puede ser interesante mostrar un histograma de cada una de ellas para ver si hay normalidad en los datos:
 
-```{r, fig.width=15, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 vars <- c(
   "NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED",
   "NUM_PERSONS_KILLED", "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED"
@@ -485,7 +495,7 @@ Esto nos indica que no tenemos normalidad, lo cual habrá que tenerlo en cuenta 
 
 En el siguiente apartado, veremos la matriz de correlaciones entre todas las variables de conteo de personas afectadas. Como no tenemos normalidad, aplicaremos la matriz de correlaciones de Spearman:
 
-```{r, fig.width=15, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE}
 data_short <- data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED", "NUM_PERSONS_KILLED",   "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED")]
 
 colnames(data_short) <- c("Total Her.", "Peatones Her.", "Ciclistas Her.", "Motoristas Her.", "Total Fall.", "Peatones Fall.", "Ciclistas Fall.", "Motoristas Fall.")
@@ -517,7 +527,7 @@ causes_cleaned <- data_sampled |>
 
 Nos ayudamos de un gráfico de barras para mostrar las frecuencias.
 
-```{r, fig.width=13, warning=FALSE}
+```{r, fig.height=10, warning=FALSE}
 causes_cleaned |> 
   ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
@@ -547,7 +557,7 @@ V2_cleaned <- data_sampled |>
 
 Ahora vamos a graficar los tipos de vehículos y sus frecuencias para *VEHICLE_1* y *VEHICLE_2*. Para ello, vamos a usar un gráfico de barras. Comenzamos con la primera variable:
 
-```{r, fig.width=13, warning=FALSE}
+```{r,fig.height=10,  warning=FALSE}
 V1_cleaned |> 
   filter(FREQUENCY_V1 > 5) |> 
   ggplot(aes(x = reorder(VEHICLE_1, FREQUENCY_V1), y = FREQUENCY_V1)) + 
@@ -563,7 +573,7 @@ Hemos mostrado solamente los vehiculos que tienen una frecuencia de almenos 5, y
 
 De manera similar, mostramos la segunda variable:
 
-```{r, fig.width=13, warning=FALSE}
+```{r, fig.height=10, warning=FALSE}
 V2_cleaned |> 
   filter(FREQUENCY_V2 > 5, VEHICLE_2 != '') |> 
   ggplot(aes(x = reorder(VEHICLE_2, FREQUENCY_V2), y = FREQUENCY_V2)) + 
@@ -1028,7 +1038,7 @@ ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
   labs(title = "Proyección LDA: Accidentes por distrito",
        x = "Función discriminante 1",
        y = "Función discriminante 2") +
-  theme_minimal()
+  theme_nyc()
 ```
 
 Se observa que el modelo obtiene buenos resultados únicamente cuando se incluyen las variables LONGITUDE y LATITUDE. Sin embargo, esto introduce una especie de “trampa”, ya que esas variables están muy relacionadas con la ubicación exacta del accidente, lo que facilita en exceso la predicción. Por ello, para evaluar realmente la capacidad del modelo, resulta más apropiado repetir el análisis excluyendo estas variables y observar cómo se comporta con información menos directa.
@@ -1096,7 +1106,7 @@ ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
   labs(title = "Proyección LDA: Accidentes por distrito sin LATITUDE y LONGITUDE",
        x = "Función discriminante 1",
        y = "Función discriminante 2") +
-  theme_minimal()
+  theme_nyc()
 ```
 
 Una vez eliminadas las variables LONGITUDE y LATITUDE del análisis, se aprecia una pérdida notable en la calidad de la agrupación, los clústeres resultantes no muestran una estructura tan clara como antes. Esto indica que los grupos formados tienen menos coherencia interna y mayor solapamiento entre ellos. En otras palabras, sin la información geográfica precisa que aportaban esas variables, el modelo tiene más dificultades para diferenciar patrones consistentes en los datos. Este resultado confirma que LONGITUDE y LATITUDE eran variables muy influyentes —quizá demasiado— y que, al eliminarlas, se muestra la verdadera dificultad del problema de segmentación.
@@ -1116,67 +1126,274 @@ data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))  # Eliminar
 
 ### 1. Tipo de vehiculo y causa:
 
-```{r, fig.width=10}
-# Crear una tabla de contingencia
+```{r, warning=FALSE, fig.width=8, fig.height=5}
+# Crear y limpiar la tabla de contingencia
 contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$CAUSE)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
 
 # Realizar el análisis de correspondencia
-ca_result <- ca(contingency_table)
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Resumen del análisis
-summary(ca_result)
+# Extraer coordenadas
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
 
-# Visualizar el gráfico de correspondencia
-plot(ca_result)
+# Añadir etiquetas y tipo
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+# Combinar datos
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+# Gráfico interactivo con Plotly
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
+
+
 ```
 
 ### 2. Tipo de vehiculo y hora:
 
-```{r, fig.width=10}
+```{r, warning=FALSE, fig.width=8, fig.height=5}
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$HOUR)
 
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
+
 # Realizar el análisis de correspondencia
-ca_result <- ca(contingency_table)
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Resumen del análisis
-summary(ca_result)
+# Extraer coordenadas
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
 
-# Visualizar el gráfico de correspondencia
-plot(ca_result)
+# Añadir etiquetas y tipo
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+# Combinar datos
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+# Gráfico interactivo con Plotly
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
 ```
 
 
 ### 3. Causa del accidente y hora:
 
-```{r, fig.width=10}
+```{r, warning=FALSE, fig.width=8, fig.height=5}
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$CAUSE, data_sampled$HOUR)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
 
 # Realizar el análisis de correspondencia
-ca_result <- ca(contingency_table)
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Resumen del análisis
-summary(ca_result)
+# Extraer coordenadas
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
 
-# Visualizar el gráfico de correspondencia
-plot(ca_result)
+# Añadir etiquetas y tipo
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+# Combinar datos
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+# Gráfico interactivo con Plotly
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
 ```
 
 ### 4. Causa del accidente y día de la semana: 
 
-```{r, fig.width=10}
+```{r, warning=FALSE, fig.width=8, fig.height=5}
 # Crear una tabla de contingencia
 contingency_table <- table(data_sampled$CAUSE, data_sampled$DAY_OF_WEEK)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
 
 # Realizar el análisis de correspondencia
-ca_result <- ca(contingency_table)
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Resumen del análisis
-summary(ca_result)
+# Extraer coordenadas
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
 
-# Visualizar el gráfico de correspondencia
-plot(ca_result)
+# Añadir etiquetas y tipo
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+# Combinar datos
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+# Gráfico interactivo con Plotly
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
 ```
 
 # CONCLUSIONES
