@@ -60,13 +60,13 @@ Jon:
 Rubén:
 
 ```{r}
-#data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
+data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
 ```
 
 Fermin:
 
 ```{r}
-data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
+#data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
 ```
 
 # INTRODUCCION
@@ -676,7 +676,7 @@ Es interesante mencionar que, teniendo en cuenta los valores obtenidos en los te
 
 Vamos a comprobar si podemos encontrar alguna relación entre distintas variables y nos proporcionan unos grupos o clúster que puedan ser interesantes de resaltar. Para realizar el análisis clúster, recogeremos las únicas variables númericas que tenemos.
 
-### Análisis Cluster Jerárquico en variable 'BOROUGH':
+### Análisis Cluster variables numéricas:
 
 #### 1. Seleccionar variables numéricas relevantes:
 
@@ -722,7 +722,7 @@ fviz_cluster(kmeans_result, data = data_scaled,
 
 ```
 
-Vemos que no se obtiene nada claro ni interesante para analizar. Vamos a probar con otro tipo de clustering, el clustering jerárquico.
+Vemos que no se obtiene nada claro ni interesante para analizar. Vamos a probar con otro tipo de clustering, dada la naturaleza de las variables, nos parecía interesante probar el clustering jerárquico.
 
 #### Clustering jerarquico
 
@@ -744,9 +744,11 @@ clusters <- cutree(hc, k = 3)
 table(clusters)
 ```
 
-Dado que tal y como hemos calculado el clúster jerárquico no obtenemos un resultado interesante, vamos a probar la alternativa de agrupar los datos por barrios.
+El análisis de clúster no aporta información relevante ni resulta fácilmente interpretable. No obstante, se planteó una alternativa consistente en agrupar los datos de heridos y fallecidos por distrito, con el objetivo de analizar si existe algún tipo de relación o patrón entre los distritos en función de estas variables.
 
-#### Agrupar los datos por barrios y clusterizar:
+### Análisis Cluster Jerárquico por distrito:
+
+#### Agrupar los datos por distritos y clusterizar:
 
 ```{r}
 data_borough_sum <- data_sampled |> 
@@ -828,7 +830,7 @@ data_borough_long <- data_borough_sum |>
 ggplot(data_borough_long, aes(x = Variable, y = Total, fill = cluster)) +
   geom_col(position = "dodge") +
   facet_wrap(~BOROUGH) +
-  labs(title = "Comparación de heridos y muertos por clúster y barrio",
+  labs(title = "Comparación de heridos y muertos por clúster y distrito",
        x = "Variable", y = "Total", fill = "Clúster") +
   theme_nyc()
 
@@ -938,9 +940,11 @@ Según este gráfico, es verdad que hay causas que podrían no estar en el clust
 
 ## Análisis discriminante
 
-Vamos a predecir el distrito al que pertenece un accidente. Para ello vamos a aseguir los siguientes pasos:
+Con ayuda del análisis discriminante, decidimos estudiar la posibilidad de predecir el distrito al que pertenece un accidente respecto del resto de variables. Para ello vamos a seguir los siguientes pasos:
 
 ### 1. Seleccionar las variables predictoras y agrupar categorías poco frecuentes:
+
+Con el objetivo de simplificar la interpretación de los resultados, hemos agrupado tanto los tipos de vehículos implicados como las causas del accidente en nueve categorías principales, reservando una décima categoría para aquellos casos menos frecuentes.
 
 ```{r}
 top_veh_types <- data_sampled |> 
@@ -968,7 +972,7 @@ data_sampled <- data_sampled |>
   mutate(CAUSE = ifelse(CAUSE %in% top_causes, CAUSE, "OTROS"))
 ```
 
-Seleccionamos las variables:
+Seleccionamos las posibles variables predictoras:
 
 ```{r}
 data_lda <- data_sampled |> 
@@ -1095,11 +1099,13 @@ ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
   theme_nyc()
 ```
 
-Una vez eliminadas las variables LONGITUDE y LATITUDE del análisis, se aprecia una pérdida notable en la calidad de la agrupación, los clústeres resultantes no muestran una estructura tan clara como antes. Esto indica que los grupos formados tienen menos coherencia interna y mayor solapamiento entre ellos. En otras palabras, sin la información geográfica precisa que aportaban esas variables, el modelo tiene más dificultades para diferenciar patrones consistentes en los datos. Este resultado confirma que LONGITUDE y LATITUDE eran variables muy influyentes —quizá demasiado— y que, al eliminarlas, se muestra la verdadera dificultad del problema de segmentación.
+Una vez eliminadas las variables LONGITUDE y LATITUDE del análisis, se aprecia una pérdida notable en la calidad de la agrupación, los clústeres resultantes no muestran una estructura tan clara como antes. Esto indica que los grupos formados tienen menos coherencia interna y mayor solapamiento entre ellos. En otras palabras, sin la información geográfica precisa que aportaban esas variables, el modelo tiene más dificultades para diferenciar patrones consistentes en los datos. Este resultado confirma que LONGITUDE y LATITUDE eran variables muy influyentes (quizá demasiado) y que, al eliminarlas, se muestra la verdadera dificultad del problema de segmentación.
  
 ## Análisis de correspondencia
 
-Para llevar a cabo el análisis de correspondencias, consideramos interesante estudiar si existía alguna relación entre la hora y el día en que ocurren los accidentes y el resto de variables. Para ello, fue necesario calcular e incorporar al conjunto de datos las variables *HOUR* y *DAY_OF_WEEK*:
+Uno de los análisis que consideramos relevantes fue el análisis de correspondencias, ya que permite explorar posibles relaciones entre dos variables categóricas. En este caso, nos centramos en estudiar si existía alguna asociación entre el día de la semana, la hora del accidente, la causa y el tipo del primer vehículo implicado.
+
+Para poder realizar este análisis, fue necesario calcular e incorporar al conjunto de datos las variables *HOUR* y *DAY_OF_WEEK*:
 
 ```{r}
 data_sampled <- data_sampled |> 
@@ -1365,13 +1371,13 @@ Para finalizar trataremos de resumir los puntos más importantes que hemos visto
 
 En primer lugar, es importante mencionar la limpieza inicial de datos que hemos tenido que realizar para poder obtener un conjunto con el que trabajar. Es un paso previo imprescindible cuando se trabaja con cualquier dataset de este tamaño, para luego poder realizar los análisis de forma limpia y correcta.
 
-Por otro lado hemos observado que debido a la naturaleza de los datos, podemos clasificar las variables en varios grupos: Variables de tiempo, variables de localización, variables numéricas de heridos y fallecidos, variables de causa del accidente y variables de los vehiculos implicados. Con estos grupos, una de las peculiaridades importantes es que solo tenemos datos numéricos en las variables de heridos y fallecidos, pero son variables enteras y además no distribuídas normalmente, por lo que hemos visto que limita bastante a la hora de realizar ciertos análisis. Este también es un punto importante a considerar al empezar a trabajar con un dataset, ya que no siempre vamos a tener todas las variables numéricas que nos gustaría, y deberemos adaptar las metodologías en consecuencia.
+Por otro lado, hemos observado que debido a la naturaleza de los datos podemos clasificar las variables en varios grupos: Variables de tiempo, variables de localización, variables numéricas de heridos y fallecidos, variables de causa del accidente y variables de los vehiculos implicados. Con estos grupos, una de las peculiaridades importantes es que sólo tenemos datos numéricos en las variables de heridos y fallecidos, pero son variables enteras y además no distribuídas normalmente, por lo que hemos visto que limita bastante a la hora de realizar ciertos análisis. Este también es un punto importante a considerar al empezar a trabajar con un dataset, ya que no siempre vamos a tener todas las variables numéricas que nos gustaría, y deberemos adaptar las metodologías en consecuencia.
 
-En cuanto a las variables categóricas como son el distrito y la causa del accidente, lo primero que hemos observado es que hay muchas categorías diferentes, debido a que cada forma de escribir una causa por ejemplo ocasiona una categoría distinta. Además, también hemos observado en estas variables que muchas de estas categorías diferentes tenian una frecuencia muy baja, y la mayoria se podían agrupar en las categorías con mayor frecuencia. A partir de estas variables, hemos aplicado diferentes análisis como clusterización para agrupar las causas y reducirlas significativamente, entre otras muchas. Esta ha sido una característica muy a tener en cuenta en nuestros datos tambien, y en la que hemos basado gran parte de nuestro análisis.
+En cuanto a las variables categóricas como son el distrito y la causa del accidente, lo primero que hemos observado es que hay muchas categorías diferentes, debido a que cada forma de escribir una causa por ejemplo ocasiona una categoría distinta. Además, también hemos observado en estas variables que muchas de estas categorías diferentes tenian una frecuencia muy baja, y la mayoria se podían agrupar en las categorías con mayor frecuencia. A partir de estas variables, hemos aplicado diferentes análisis como clusterización para agrupar las causas y reducirlas significativamente, entre otras muchas. Esta ha sido una característica muy a tener en cuenta en nuestros datos también, y en la que hemos basado gran parte de nuestro análisis.
 
-Además, es un dataset que nos ha dado mucho juego en aspectos como los mapas gracias a las variables de ubicación, ya que por ese lado se pueden realizar análisis muy visuales y sobre todo interactivos que hemos profundizado más en la aplicación, para ver evoluciones de accidentes a lo largo del tiempo y accidentes en distintos grupos filtrados. Consideramos que es el aspecto más característico de los datos, ya que además la ubicación se mide de forma objetiva, y además puede dar pie a análisis y predicciones por zonas concretas.
+Además, es un dataset que nos ha dado mucho juego en aspectos como los mapas gracias a las variables de ubicación, ya que por ese lado se pueden realizar análisis muy visuales y sobre todo interactivos que hemos profundizado más en la aplicación, para ver evoluciones de accidentes a lo largo del tiempo y accidentes en distintos grupos filtrados. Consideramos que es el aspecto más característico de los datos, ya que además la ubicación se mide de forma objetiva, e incluso puede dar pie a análisis y predicciones por zonas concretas.
 
-Siguiendo con lo anterior, hemos pensado en posibles opciones que daría este dataset con ligeras modificaciones para continuar trabajandolo en el futuro. Si hubiera información acerca de la zona del coche afectada en el accidente o el importe de la reparación, podríamos tratar de entender que tipo de accidentes son más frecuentes en cada zona de Nueva York. Además también podría ser interesante almacenar información acerca de la meteorología del momento, para así ver que influencia tienen las condiciones de la calzada en los accidentes. Y por último, también podría ser interesante almacenar la edad, sexo o etnia de los implicados, para así ver si hay algún tipo de patrón o tendencia según el perfil de cada persona.
+Siguiendo con lo anterior, hemos pensado en posibles opciones que daría este dataset con ligeras modificaciones para continuar trabajándolo en el futuro. Si hubiera información acerca de la zona del coche afectada en el accidente o el importe de la reparación, podríamos tratar de entender que tipo de accidentes son más frecuentes en cada zona de Nueva York. Además, también podría ser interesante almacenar información acerca de la meteorología del momento, para así ver que influencia tienen las condiciones de la calzada en los accidentes. Y por último, también podría ser interesante almacenar la edad, sexo o etnia de los implicados, para así ver si hay algún tipo de patrón o tendencia según el perfil de cada persona.
 
 
 
