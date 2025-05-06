@@ -324,7 +324,6 @@ data_time |>
     geom_point(color = "#FF4C4C", size = 2) +
     labs(title = "Frecuencia de Accidentes por Año", x = "Fecha", y = "Frecuencia") +
     theme_nyc()
-  
 
 ```
 
@@ -578,7 +577,7 @@ V2_cleaned |>
   filter(FREQUENCY_V2 > 5, VEHICLE_2 != '') |> 
   ggplot(aes(x = reorder(VEHICLE_2, FREQUENCY_V2), y = FREQUENCY_V2)) + 
   geom_bar(stat = "identity", fill = "steelblue") + 
-  coord_flip() +  # Rota el gráfico para mejor visualización
+  coord_flip() +
   labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
        x = "Vehículos",
        y = "Frecuencia") +
@@ -686,8 +685,7 @@ data_cluster <- data_sampled |>
   dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
          NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
 
-# Escalar (normalizar) los datos
-data_scaled <- scale(data_cluster)
+data_scaled <- scale(data_cluster) #Normalizar
 ```
 
 #### 2. Determinar el número óptimo de clusters:
@@ -696,7 +694,7 @@ data_scaled <- scale(data_cluster)
 wss <- vector()
 set.seed(123)
 for (k in 1:10) {
-  km <- kmeans(data_scaled, centers = k, nstart = 5)  # menos repeticiones
+  km <- kmeans(data_scaled, centers = k, nstart = 5)
   wss[k] <- km$tot.withinss
 }
 
@@ -715,7 +713,6 @@ Según el método del codo, lo más interesante sería probar hacer un clúster 
 set.seed(123)
 kmeans_result <- kmeans(data_scaled, centers = 6, nstart = 25)
 
-# Visualizar clústeres en el espacio PCA
 fviz_cluster(kmeans_result, data = data_scaled,
              ellipse.type = "norm",
              geom = "point",
@@ -730,19 +727,18 @@ Vemos que no se obtiene nada claro ni interesante para analizar. Vamos a probar 
 #### Clustering jerarquico
 
 ```{r}
-# Calcular la matriz de distancias
 dist_matrix <- dist(data_scaled, method = "euclidean")
 
-# Realizar el clustering jerárquico
-hc <- hclust(dist_matrix, method = "complete") # --> Mirar a ver que método es mejor
+# clustering jerárquico
+hc <- hclust(dist_matrix, method = "complete")
 ```
 
 
 ```{r}
-# Visualizar el dendrograma
+# dendrograma
 plot(hc, labels = FALSE, hang = -1, main = "Dendrograma de Clustering Jerárquico")
 
-# Cortamos:
+# cortar
 rect.hclust(hc, k = 3, border = "red")
 clusters <- cutree(hc, k = 3)
 table(clusters)
@@ -753,7 +749,6 @@ Dado que tal y como hemos calculado el clúster jerárquico no obtenemos un resu
 #### Agrupar los datos por barrios y clusterizar:
 
 ```{r}
-# Sólo con el total de muertos y heridos:
 data_borough_sum <- data_sampled |> 
   group_by(BOROUGH) |> 
   summarise(
@@ -812,10 +807,8 @@ Vamos a añadir un gráfico de barras comparando las variables entre los clúste
 1. Asignamos los clúster al dataframe:
 
 ```{r}
-# Cortar el dendrograma para obtener 3 clústeres
 clusters <- cutree(hc, k = 3)
 
-# Añadir la columna de clúster al dataframe original
 data_borough_sum$cluster <- as.factor(clusters)
 
 ```
@@ -870,7 +863,6 @@ Establecemos similitudes entre los nombres de las causas, mediante una matriz de
 
 
 ```{r}
-# Crear matriz de distancias entre nombres de causas
 dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "cosine")  
 
 rownames(dist_matrix) <- causes_cleaned$CAUSE
@@ -910,7 +902,6 @@ clusters <- cutree(hc, k = k)
 # Calcular silueta
 sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
 
-# Graficar con estilo personalizado
 fviz_silhouette(sil) +
   ggtitle(paste("Índice de Silueta para k =", k)) +
   theme_nyc()
@@ -939,7 +930,6 @@ clusters <- cutree(hc, k = k)
 # Calcular silueta
 sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
 
-# Graficar con estilo personalizado
 fviz_silhouette(sil) +
   ggtitle(paste("Índice de Silueta para k =", k)) +
   theme_nyc()
@@ -953,7 +943,6 @@ Vamos a predecir el distrito al que pertenece un accidente. Para ello vamos a as
 ### 1. Seleccionar las variables predictoras y agrupar categorías poco frecuentes:
 
 ```{r}
-# Agrupar las 10 categorías más frecuentes de VEHICLE_1
 top_veh_types <- data_sampled |> 
   count(VEHICLE_1, sort = TRUE) |> 
   slice_head(n = 10) |> 
@@ -962,7 +951,6 @@ top_veh_types <- data_sampled |>
 data_sampled <- data_sampled |> 
   mutate(VEHICLE_1 = ifelse(VEHICLE_1 %in% top_veh_types, VEHICLE_1, "OTROS"))
 
-# Agrupar las 10 categorías más frecuentes de VEHICLE_2
 top_veh_types <- data_sampled |> 
   count(VEHICLE_2, sort = TRUE) |> 
   slice_head(n = 10) |> 
@@ -971,7 +959,6 @@ top_veh_types <- data_sampled |>
 data_sampled <- data_sampled |> 
   mutate(VEHICLE_2 = ifelse(VEHICLE_2 %in% top_veh_types, VEHICLE_2, "OTROS"))
 
-# Agrupar las 10 categorías más frecuentes de CAUSE
 top_causes <- data_sampled |> 
   count(CAUSE, sort = TRUE) |> 
   slice_head(n = 10) |> 
@@ -1015,7 +1002,6 @@ test_data <- data_lda_final[-train_index, ]
 ### 4. Aplicamos el análisis discriminante:
 
 ```{r}
-# Aplicar LDA
 lda_model <- lda(BOROUGH ~ ., data = train_data)
 lda_model
 
@@ -1026,7 +1012,7 @@ lda_model
 ```{r}
 predictions <- predict(lda_model, newdata = test_data)
 
-# Matriz de confusión
+# matriz de confusion
 table(Predicho = predictions$class, Real = test_data$BOROUGH)
 ```
 
@@ -1083,10 +1069,8 @@ test_data <- data_lda_final[-train_index, ]
 ### 4.2 Aplicamos el análisis discriminante:
 
 ```{r}
-# Aplicar LDA
 lda_model <- lda(BOROUGH ~ ., data = train_data)
 lda_model
-
 ```
 
 ### 5.2 Evaluamos el modelo:
@@ -1100,7 +1084,7 @@ table(Predicho = predictions$class, Real = test_data$BOROUGH)
 
 ### 6.2 Visualizar las dos primeras funciones discriminantes:
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 lda_df <- data.frame(predictions$x, BOROUGH = test_data$BOROUGH)
 
 ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
@@ -1123,36 +1107,31 @@ data_sampled <- data_sampled |>
          DAY_OF_WEEK = weekdays(as.Date(DATE, format = "%Y-%m-%d")))
 data_sampled$HOUR <- as.factor(data_sampled$HOUR)
 data_sampled$DAY_OF_WEEK <- toupper(data_sampled$DAY_OF_WEEK)
-data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))  # Eliminar los posibles espacios
+data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))
 ```
 
 ### 1. Tipo de vehiculo y causa:
 
 ```{r, warning=FALSE, fig.width=8, fig.height=5}
-# Crear y limpiar la tabla de contingencia
 contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$CAUSE)
 contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
 
-# Realizar el análisis de correspondencia
 ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Extraer coordenadas
 row_coord <- as.data.frame(ca_result$row$coord)
 col_coord <- as.data.frame(ca_result$col$coord)
 
-# Añadir etiquetas y tipo
 row_coord$label <- rownames(row_coord)
 col_coord$label <- rownames(col_coord)
 row_coord$type <- "Fila"
 col_coord$type <- "Columna"
 
-# Combinar datos
 biplot_data <- rbind(
   data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
   data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
 )
 
-# Gráfico interactivo con Plotly
+# Gráfico interactivo
 plot_ly(
   data = biplot_data,
   x = ~Dim1, y = ~Dim2,
@@ -1198,31 +1177,25 @@ plot_ly(
 ### 2. Tipo de vehiculo y hora:
 
 ```{r, warning=FALSE, fig.width=8, fig.height=5}
-# Crear una tabla de contingencia
 contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$HOUR)
 
 contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
 
-# Realizar el análisis de correspondencia
 ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Extraer coordenadas
 row_coord <- as.data.frame(ca_result$row$coord)
 col_coord <- as.data.frame(ca_result$col$coord)
 
-# Añadir etiquetas y tipo
 row_coord$label <- rownames(row_coord)
 col_coord$label <- rownames(col_coord)
 row_coord$type <- "Fila"
 col_coord$type <- "Columna"
 
-# Combinar datos
 biplot_data <- rbind(
   data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
   data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
 )
 
-# Gráfico interactivo con Plotly
 plot_ly(
   data = biplot_data,
   x = ~Dim1, y = ~Dim2,
@@ -1267,30 +1240,24 @@ plot_ly(
 ### 3. Causa del accidente y hora:
 
 ```{r, warning=FALSE, fig.width=8, fig.height=5}
-# Crear una tabla de contingencia
 contingency_table <- table(data_sampled$CAUSE, data_sampled$HOUR)
 contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
 
-# Realizar el análisis de correspondencia
 ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Extraer coordenadas
 row_coord <- as.data.frame(ca_result$row$coord)
 col_coord <- as.data.frame(ca_result$col$coord)
 
-# Añadir etiquetas y tipo
 row_coord$label <- rownames(row_coord)
 col_coord$label <- rownames(col_coord)
 row_coord$type <- "Fila"
 col_coord$type <- "Columna"
 
-# Combinar datos
 biplot_data <- rbind(
   data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
   data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
 )
 
-# Gráfico interactivo con Plotly
 plot_ly(
   data = biplot_data,
   x = ~Dim1, y = ~Dim2,
@@ -1334,30 +1301,24 @@ plot_ly(
 ### 4. Causa del accidente y día de la semana: 
 
 ```{r, warning=FALSE, fig.width=8, fig.height=5}
-# Crear una tabla de contingencia
 contingency_table <- table(data_sampled$CAUSE, data_sampled$DAY_OF_WEEK)
 contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
 
-# Realizar el análisis de correspondencia
 ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
 
-# Extraer coordenadas
 row_coord <- as.data.frame(ca_result$row$coord)
 col_coord <- as.data.frame(ca_result$col$coord)
 
-# Añadir etiquetas y tipo
 row_coord$label <- rownames(row_coord)
 col_coord$label <- rownames(col_coord)
 row_coord$type <- "Fila"
 col_coord$type <- "Columna"
 
-# Combinar datos
 biplot_data <- rbind(
   data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
   data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
 )
 
-# Gráfico interactivo con Plotly
 plot_ly(
   data = biplot_data,
   x = ~Dim1, y = ~Dim2,
