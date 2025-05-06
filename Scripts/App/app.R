@@ -7,6 +7,7 @@ library(zoo)
 library(leaflet)
 library(leaflet.extras)
 library(dplyr)
+library(DT)
 
 data_sampled <- read.csv("data_sampled.csv")
 
@@ -75,348 +76,376 @@ theme_nyc <- function() {
 }
 
 # UI
-ui <- navbarPage(
-  title = div(
-    icon("car-crash"),
-    tags$h1("NYC Accident Dashboard", class = "text-secondary", style = "margin: 0; font-family: 'Bebas Neue';")
+ui <- tagList(
+  tags$head(
+    tags$style(HTML("
+      /* Imagen de fondo fija para toda la app */
+      body {
+        background-image: url('www/upscalemedia-transformed.png');
+        background-size: cover;
+        background-attachment: fixed;
+        background-position: center;
+        background-repeat: no-repeat;
+        margin: 0;
+        padding: 0;
+      }
+
+      /* Capa semitransparente general para todo el contenido */
+      .main-container {
+        background-color: rgba(255, 255, 255, 0.8); /* Blanco 80% opaco */
+        padding: 20px;
+        min-height: 100vh; /* Altura mínima igual a la ventana */
+      }
+    "))
   ),
-  theme = ny_theme,
   
-  # Usar un desplegable para el "Menú Principal"
-  tabPanel(
-    tags$div("Visualización de datos 📊", style = "font-size: 18px; font-weight: bold;"),
-    sidebarLayout(
-      sidebarPanel(
-        # Selector desplegable en lugar de radioButtons
-        selectInput(
-          "main_view",
-          "Seleccionar vista:",
-          choices = c(
-            "Frecuencia de Accidentes 🚦" = "freq",
-            "Frecuencia de Accidentes por barrio 🏙️"= "freq_bar",
-            "Heridos vs Muertos 💀 " = "var", 
-            "Frecuencia de Causas 🚑" = "causes"
-          ),
-          selected = "freq"
+  div(class = "main-container",
+      navbarPage(
+        title = div(
+          icon("car-crash"),
+          tags$h1("NYC Accident Dashboard", class = "text-secondary", style = "margin: 0; font-family: 'Bebas Neue';")
         ),
-        
-        # Panel condicional para frecuencia de accidentes
-        conditionalPanel(
-          condition = "input.main_view == 'freq'",
-          h4("Configuración de Frecuencia Temporal"),
+        theme = ny_theme,
+  
+    # Usar un desplegable para el "Menú Principal"
+    tabPanel(
+      div(class = "overlay",
+      tags$div("Visualización de datos 📊", style = "font-size: 18px; font-weight: bold;"),
+      sidebarLayout(
+        sidebarPanel(
+          # Selector desplegable en lugar de radioButtons
           selectInput(
-            "freq_type", 
-            "Frecuencia temporal:",
-            choices = c("Diario" = "daily", "Mensual" = "monthly", "Anual" = "yearly"),
-            selected = "daily"
-          ),
-          radioButtons(
-            "graph_type",
-            "Tipo de gráfico:",
-            choices = c("Barras" = "bar", "Líneas" = "line", "Combinado" = "combo"),
-            selected = "combo"
-          ),
-          dateRangeInput(
-            'date_range_freq', 
-            'Rango de fechas:',
-            start = min_date, 
-            end = max_date,
-            min = min_date, 
-            max = max_date,
-            format = 'yyyy-mm-dd', 
-            startview = 'year',
-            language = 'es', 
-            separator = " a "
-          )
-        ),
-        
-        # Panel condicional para frecuencia de barrios
-        conditionalPanel(
-          condition = "input.main_view == 'freq_bar'",
-          h4("Configuración de Gráficos por Barrio"),
-          
-          checkboxGroupInput(
-            "borough_freq", 
-            "Seleccionar Barrio(s):",
-            choices = borough_choices,
-            selected = borough_choices
+            "main_view",
+            "Seleccionar vista:",
+            choices = c(
+              "Frecuencia de Accidentes 🚦" = "freq",
+              "Frecuencia de Accidentes por barrio 🏙️"= "freq_bar",
+              "Heridos vs Muertos 💀 " = "var", 
+              "Frecuencia de Causas 🚑" = "causes"
+            ),
+            selected = "freq"
           ),
           
-          actionButton("select_all_freq", "Seleccionar Todos"),
-          actionButton("deselect_all_freq", "Deseleccionar Todos"),
-          
-          dateRangeInput(
-            'date_range_freq', 
-            'Rango de fechas:',
-            start = min_date, 
-            end = max_date,
-            min = min_date, 
-            max = max_date,
-            format = 'yyyy-mm-dd', 
-            startview = 'year',
-            language = 'es', 
-            separator = " a "
-          )
-        ),
-        
-        # Panel condicional para heridos y muertos
-        conditionalPanel(
-          condition = "input.main_view == 'var'",
-          h4("Configuración de Variables"),
-          selectInput("borough", "Seleccionar Barrio:",
-                      choices = c("Todos", unique(data_sampled$BOROUGH)),
-                      selected = "Todos"),
-          dateRangeInput(
-            'date_range_var', 
-            'Filtrar por rango de fechas',
-            start = min_date, 
-            end = max_date,
-            min = min_date, 
-            max = max_date,
-            format = 'yyyy-mm-dd', 
-            startview = 'year',
-            language = 'es', 
-            separator = " a "
-          )
-        ),
-        
-        # Panel para seleccionar el número de causas a mostrar
-        conditionalPanel(
-          condition = "input.main_view == 'causes'",
-          h4("Configuración de Variables"),
-          selectInput("borough", "Seleccionar Barrio:",
-                      choices = c("Todos", unique(data_sampled$BOROUGH)),
-                      selected = "Todos"),
-          dateRangeInput(
-            'date_range_var', 
-            'Filtrar por rango de fechas',
-            start = min_date, 
-            end = max_date,
-            min = min_date, 
-            max = max_date,
-            format = 'yyyy-mm-dd', 
-            startview = 'year',
-            language = 'es', 
-            separator = " a "
+          # Panel condicional para frecuencia de accidentes
+          conditionalPanel(
+            condition = "input.main_view == 'freq'",
+            h4("Configuración de Frecuencia Temporal"),
+            selectInput(
+              "freq_type", 
+              "Frecuencia temporal:",
+              choices = c("Diario" = "daily", "Mensual" = "monthly", "Anual" = "yearly"),
+              selected = "daily"
+            ),
+            radioButtons(
+              "graph_type",
+              "Tipo de gráfico:",
+              choices = c("Barras" = "bar", "Líneas" = "line", "Combinado" = "combo"),
+              selected = "combo"
+            ),
+            dateRangeInput(
+              'date_range_freq', 
+              'Rango de fechas:',
+              start = min_date, 
+              end = max_date,
+              min = min_date, 
+              max = max_date,
+              format = 'yyyy-mm-dd', 
+              startview = 'year',
+              language = 'es', 
+              separator = " a "
+            )
           ),
           
-          # Slider para elegir el número de causas a mostrar
-          sliderInput(
-            "top_causes", 
-            "Número de causas más frecuentes:",
-            min = 5, 
-            max = length(unique(data_sampled$CAUSE)), 
-            value = 10,
-            step = 1
-          )
-        )
-      ),
-      
-      mainPanel(
-        conditionalPanel(
-          condition = "input.main_view == 'freq'",
-          tabsetPanel(
-            tabPanel('Gráfico Temporal Combinado', 
-                     plotOutput(outputId = 'combined_plot'), 
-                     textOutput("summary_text")),
+          # Panel condicional para frecuencia de barrios
+          conditionalPanel(
+            condition = "input.main_view == 'freq_bar'",
+            h4("Configuración de Gráficos por Barrio"),
+            
+            checkboxGroupInput(
+              "borough_freq", 
+              "Seleccionar Barrio(s):",
+              choices = borough_choices,
+              selected = borough_choices
+            ),
+            
+            actionButton("select_all_freq", "Seleccionar Todos"),
+            actionButton("deselect_all_freq", "Deseleccionar Todos"),
+            
+            dateRangeInput(
+              'date_range_freq', 
+              'Rango de fechas:',
+              start = min_date, 
+              end = max_date,
+              min = min_date, 
+              max = max_date,
+              format = 'yyyy-mm-dd', 
+              startview = 'year',
+              language = 'es', 
+              separator = " a "
+            )
+          ),
+          
+          # Panel condicional para heridos y muertos
+          conditionalPanel(
+            condition = "input.main_view == 'var'",
+            h4("Configuración de Variables"),
+            selectInput("borough", "Seleccionar Barrio:",
+                        choices = c("Todos", unique(data_sampled$BOROUGH)),
+                        selected = "Todos"),
+            dateRangeInput(
+              'date_range_var', 
+              'Filtrar por rango de fechas',
+              start = min_date, 
+              end = max_date,
+              min = min_date, 
+              max = max_date,
+              format = 'yyyy-mm-dd', 
+              startview = 'year',
+              language = 'es', 
+              separator = " a "
+            )
+          ),
+          
+          # Panel para seleccionar el número de causas a mostrar
+          conditionalPanel(
+            condition = "input.main_view == 'causes'",
+            h4("Configuración de Variables"),
+            selectInput("borough", "Seleccionar Barrio:",
+                        choices = c("Todos", unique(data_sampled$BOROUGH)),
+                        selected = "Todos"),
+            dateRangeInput(
+              'date_range_var', 
+              'Filtrar por rango de fechas',
+              start = min_date, 
+              end = max_date,
+              min = min_date, 
+              max = max_date,
+              format = 'yyyy-mm-dd', 
+              startview = 'year',
+              language = 'es', 
+              separator = " a "
+            ),
+            
+            # Slider para elegir el número de causas a mostrar
+            sliderInput(
+              "top_causes", 
+              "Número de causas más frecuentes:",
+              min = 5, 
+              max = length(unique(data_sampled$CAUSE)), 
+              value = 10,
+              step = 1
+            )
           )
         ),
         
-        conditionalPanel(
-          condition = "input.main_view == 'freq_bar'",
-          tabsetPanel(
-            tabPanel('Distribución por Barrio', plotOutput(outputId = 'accident_borough')),
-            tabPanel('Evolución por Barrio', plotOutput(outputId = 'accident_evolution'))
-          )
-        ),
-        
-        conditionalPanel(
-          condition = "input.main_view == 'var'",
-          tabsetPanel(
-            tabPanel('Heridos y Fallecidos', plotOutput(outputId = 'injury_death_plot')),
-          )
-        ),
-        
-        conditionalPanel(
-          condition = "input.main_view == 'causes'",
-          tabsetPanel(
-            tabPanel('Causas de Accidentes', plotOutput(outputId = 'frequency_of_causes'))
+        mainPanel(
+          conditionalPanel(
+            condition = "input.main_view == 'freq'",
+            tabsetPanel(
+              tabPanel('Gráfico Temporal Combinado', 
+                       plotOutput(outputId = 'combined_plot'), 
+                       textOutput("summary_text")),
+            )
+          ),
+          
+          conditionalPanel(
+            condition = "input.main_view == 'freq_bar'",
+            tabsetPanel(
+              tabPanel('Distribución por Barrio', plotOutput(outputId = 'accident_borough')),
+              tabPanel('Evolución por Barrio', plotOutput(outputId = 'accident_evolution'))
+            )
+          ),
+          
+          conditionalPanel(
+            condition = "input.main_view == 'var'",
+            tabsetPanel(
+              tabPanel('Heridos y Fallecidos', plotOutput(outputId = 'injury_death_plot')),
+            )
+          ),
+          
+          conditionalPanel(
+            condition = "input.main_view == 'causes'",
+            tabsetPanel(
+              tabPanel('Causas de Accidentes', plotOutput(outputId = 'frequency_of_causes'))
+            )
           )
         )
       )
-    )
-  ),
-  
-  # Panel para los mapas
-  tabPanel(
-    tags$div("Mapas 🗺️", style = "font-size: 18px; font-weight: bold;"),
-    sidebarLayout(
-      sidebarPanel(
-        # Selector desplegable en lugar de radioButtons
-        selectInput(
-          "main_view",
-          "Seleccionar vista:",
-          choices = c(
-            "Mapa de calor 🌡️" = "hot_map",
-            "️Mapa evolutivo 📈"= "evolution_map"
-          ),
-          selected = "hot_map"
-        ),
-        
-        # Panel condicional para el mapa de calor
-        conditionalPanel(
-          condition = "input.main_view == 'hot_map'",
-          h4("Configuración del mapa"),
-          
-          checkboxGroupInput("tipo_usuario", "Víctimas implicadas:",
-                             choices = c("Sin heridos", "Peatones", "Ciclistas", "Motoristas"),
-                             selected = c("Sin heridos","Peatones", "Ciclistas", "Motoristas")),
-          
-          selectInput("causa", "Causa del accidente:",
-                      choices = c("Todas", unique(data_sampled$CAUSE)),
-                      selected = "Todas"),
-          br(),
-          uiOutput("num_accidentes")
-        ),
-        
-        # Panel condicional para el mapa evolutivo
-        conditionalPanel(
-          condition = "input.main_view == 'evolution_map'",
-          h4("Botones de control"),
-          
-          actionButton("start", "Iniciar", class = "btn-success"),
-          actionButton("pause", "Pausar", class = "btn-warning"),
-          br(), br()
-        )
-      ),
-    
-      mainPanel(
-        conditionalPanel(
-          condition = "input.main_view == 'hot_map'",
-            leafletOutput("mapa_accidentes", height=500),
-            style = "margin-bottom: 10px;"
-        ),
-        
-        conditionalPanel(
-          condition = "input.main_view == 'evolution_map'",
-            leafletOutput("mapa_evolutivo", height = 500),
-            uiOutput("rango_fechas")
-        )
-      ),
     ),
     
-    tags$div(
-      style = "position: fixed; bottom: 0; left: 0; right: 0; background-color: #F4F4F4; padding: 10px; z-index: 9999; 
-           margin-bottom: 10px; margin-left: 15px; margin-right: 15px; border-radius: 5px;",
-      tags$style(HTML("
-        #Fecha-label { color: #FFD100; font-weight: bold; }
-        .irs-grid-text { color: #FFD100 !important; }
-      ")),
-      sliderInput("Fecha", "RANGO DE FECHAS:",
-                  min = as.Date(min(data_sampled$DATE)),
-                  max = as.Date(max(data_sampled$DATE)),
-                  value = c(as.Date(min(data_sampled$DATE)), as.Date(max(data_sampled$DATE))),
-                  timeFormat = "%Y-%m-%d",
-                  width = "100%")
-    )
-  ),
-  
-  # Panel para los análisis
-  tabPanel(
-    tags$div("Análisis de interés 💡️", style = "font-size: 18px; font-weight: bold;"),
-    
-    sidebarLayout(
-      sidebarPanel(
-        selectInput(
-          "main_view",
-          "Seleccionar vista:",
-          choices = c(
-            "Análisis Cluster Jerárquico 💠️" = "cluster",
-            "Análisis de Correspondencia 👥" = "corresp"
+    # Panel para los mapas
+    tabPanel(
+      tags$div("Mapas 🗺️", style = "font-size: 18px; font-weight: bold;"),
+      sidebarLayout(
+        sidebarPanel(
+          # Selector desplegable en lugar de radioButtons
+          selectInput(
+            "main_view",
+            "Seleccionar vista:",
+            choices = c(
+              "Mapa de calor 🌡️" = "hot_map",
+              "️Mapa evolutivo 📈"= "evolution_map"
+            ),
+            selected = "hot_map"
           ),
-          selected = "cluster"
+          
+          # Panel condicional para el mapa de calor
+          conditionalPanel(
+            condition = "input.main_view == 'hot_map'",
+            h4("Configuración del mapa"),
+            
+            checkboxGroupInput("tipo_usuario", "Víctimas implicadas:",
+                               choices = c("Sin heridos", "Peatones", "Ciclistas", "Motoristas"),
+                               selected = c("Sin heridos","Peatones", "Ciclistas", "Motoristas")),
+            
+            selectInput("causa", "Causa del accidente:",
+                        choices = c("Todas", unique(data_sampled$CAUSE)),
+                        selected = "Todas"),
+            br(),
+            uiOutput("num_accidentes")
+          ),
+          
+          # Panel condicional para el mapa evolutivo
+          conditionalPanel(
+            condition = "input.main_view == 'evolution_map'",
+            h4("Botones de control"),
+            
+            actionButton("start", "Iniciar", class = "btn-success"),
+            actionButton("pause", "Pausar", class = "btn-warning"),
+            br(), br()
+          )
         ),
-        
-        # Widgets Análisis Jerárquico
-        conditionalPanel(
-          condition = "input.main_view == 'cluster'",
-          checkboxGroupInput("plot_choices", 
-                             "Selecciona las opciones para ver:",
-                             choices = c("Dendrograma", "Silueta", "Tabla"),
-                             selected = c("Dendrograma", "Silueta", "Tabla")),
-          sliderInput("k", 
-                      "Número de grupos (k):", 
-                      min = 2, max = 4, value = 3),
-          checkboxInput("show_rect", "Mostrar rectángulos en el dendrograma", value = TRUE)
+      
+        mainPanel(
+          conditionalPanel(
+            condition = "input.main_view == 'hot_map'",
+              leafletOutput("mapa_accidentes", height=500),
+              style = "margin-bottom: 10px;"
+          ),
+          
+          conditionalPanel(
+            condition = "input.main_view == 'evolution_map'",
+              leafletOutput("mapa_evolutivo", height = 500),
+              uiOutput("rango_fechas")
+          )
         ),
-        
-        # Widgets Análisis de Correspondencia
-        conditionalPanel(
-          condition = "input.main_view == 'corresp'",
-          h4("Seleccione dos variables categóricas"),
-          radioButtons("var1", "Elige Variable 1:", 
-                       choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
-                       selected = "VEHICLE_1"),
-          radioButtons("var2", "Elige Variable 2:", 
-                       choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
-                       selected = "CAUSE"),
-          tags$script(HTML("
-          Shiny.addCustomMessageHandler('disable_radio_option', function(data) {
-            var inputId = data.inputId;
-            var optionToDisable = data.option;
-            var radios = document.getElementsByName(inputId);
-            for (var i = 0; i < radios.length; i++) {
-              if (radios[i].value === optionToDisable) {
-                radios[i].disabled = true;
-                radios[i].parentElement.style.color = '#999999';
-              } else {
-                radios[i].disabled = false;
-                radios[i].parentElement.style.color = '';
-              }
-            }
-          });
-        "))
-        )
       ),
       
-      mainPanel(
-        # Panel principal Análisis Jerárquico
-        conditionalPanel(
-          condition = "input.main_view == 'cluster'",
-          conditionalPanel(
-            condition = "input.plot_choices.indexOf('Dendrograma') > -1",
-            plotOutput("dendrogramPlot", height = "500px")
+      tags$div(
+        style = "position: fixed; bottom: 0; left: 0; right: 0; background-color: #F4F4F4; padding: 10px; z-index: 9999; 
+             margin-bottom: 10px; margin-left: 15px; margin-right: 15px; border-radius: 5px;",
+        tags$style(HTML("
+          #Fecha-label { color: #FFD100; font-weight: bold; }
+          .irs-grid-text { color: #FFD100 !important; }
+        ")),
+        sliderInput("Fecha", "RANGO DE FECHAS:",
+                    min = as.Date(min(data_sampled$DATE)),
+                    max = as.Date(max(data_sampled$DATE)),
+                    value = c(as.Date(min(data_sampled$DATE)), as.Date(max(data_sampled$DATE))),
+                    timeFormat = "%Y-%m-%d",
+                    width = "100%")
+      )
+    ),
+    
+    # Panel para los análisis
+    tabPanel(
+      tags$div("Análisis de interés 💡️", style = "font-size: 18px; font-weight: bold;"),
+      
+      sidebarLayout(
+        sidebarPanel(
+          selectInput(
+            "main_view",
+            "Seleccionar vista:",
+            choices = c(
+              "Análisis Cluster Jerárquico 💠️" = "cluster",
+              "Análisis de Correspondencia 👥" = "corresp"
+            ),
+            selected = "cluster"
           ),
+          
+          # Widgets Análisis Jerárquico
           conditionalPanel(
-            condition = "input.plot_choices.indexOf('Silueta') > -1",
-            plotOutput("silhouettePlot")
+            condition = "input.main_view == 'cluster'",
+            checkboxGroupInput("plot_choices", 
+                               "Selecciona las opciones para ver:",
+                               choices = c("Dendrograma", "Silueta", "Tabla"),
+                               selected = c("Dendrograma", "Silueta", "Tabla")),
+            sliderInput("k", 
+                        "Número de grupos (k):", 
+                        min = 2, max = 4, value = 3),
+            checkboxInput("show_rect", "Mostrar rectángulos en el dendrograma", value = TRUE)
           ),
+          
+          # Widgets Análisis de Correspondencia
           conditionalPanel(
-            condition = "input.plot_choices.indexOf('Tabla') > -1",
-            DTOutput("boroughTable")
+            condition = "input.main_view == 'corresp'",
+            h4("Seleccione dos variables categóricas"),
+            radioButtons("var1", "Elige Variable 1:", 
+                         choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
+                         selected = "VEHICLE_1"),
+            radioButtons("var2", "Elige Variable 2:", 
+                         choices = c("VEHICLE_1", "CAUSE", "HOUR", "DAY_OF_WEEK"),
+                         selected = "CAUSE"),
+            tags$script(HTML("
+            Shiny.addCustomMessageHandler('disable_radio_option', function(data) {
+              var inputId = data.inputId;
+              var optionToDisable = data.option;
+              var radios = document.getElementsByName(inputId);
+              for (var i = 0; i < radios.length; i++) {
+                if (radios[i].value === optionToDisable) {
+                  radios[i].disabled = true;
+                  radios[i].parentElement.style.color = '#999999';
+                } else {
+                  radios[i].disabled = false;
+                  radios[i].parentElement.style.color = '';
+                }
+              }
+            });
+          "))
           )
         ),
         
-        # Panel principal Análisis de Correspondencia
-        conditionalPanel(
-          condition = "input.main_view == 'corresp'",
-          h4("Interpretación del análisis"),
-          verbatimTextOutput("ca_interpretation"),
-          tags$style(HTML("
-          #ca_interpretation {
-            white-space: normal;
-            overflow-y: visible !important;
-            height: auto !important;
-          }
-        ")),
-          fluidRow(
-            column(6, plotOutput("ca_biplot", height = "500px")),
-            column(6, plotOutput("ca_contrib", height = "500px"))
+        mainPanel(
+          # Panel principal Análisis Jerárquico
+          conditionalPanel(
+            condition = "input.main_view == 'cluster'",
+            conditionalPanel(
+              condition = "input.plot_choices.indexOf('Dendrograma') > -1",
+              plotOutput("dendrogramPlot", height = "500px")
+            ),
+            conditionalPanel(
+              condition = "input.plot_choices.indexOf('Silueta') > -1",
+              plotOutput("silhouettePlot")
+            ),
+            conditionalPanel(
+              condition = "input.plot_choices.indexOf('Tabla') > -1",
+              DTOutput("boroughTable")
+            )
+          ),
+          
+          # Panel principal Análisis de Correspondencia
+          conditionalPanel(
+            condition = "input.main_view == 'corresp'",
+            h4("Interpretación del análisis"),
+            verbatimTextOutput("ca_interpretation"),
+            tags$style(HTML("
+            #ca_interpretation {
+              white-space: normal;
+              overflow-y: visible !important;
+              height: auto !important;
+            }
+          ")),
+            fluidRow(
+              column(6, plotOutput("ca_biplot", height = "500px")),
+              column(6, plotOutput("ca_contrib", height = "500px"))
+            )
           )
         )
       )
     )
+   )
   )
+ )
 )
 
   
