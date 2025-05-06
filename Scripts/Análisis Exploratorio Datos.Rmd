@@ -657,7 +657,7 @@ KMO(datos_heridos_scaled)
 
 De manera similar al caso general, obtenemos que no es interesante realizar un PCA, ya que el KMO vuelve a rechazar la idea de realizar el PCA, con el mismo valor de 0.47, inferior a 0.5.
 
-### PCA con muertos
+#### PCA con muertos
 
 ```{r}
 datos_heridos <- data_sampled |> 
@@ -674,6 +674,8 @@ Es interesante mencionar que, teniendo en cuenta los valores obtenidos en los te
 
 
 ## Clusterizaciones
+
+Vamos a comprobar si podemos encontrar alguna relación entre distintas variables y nos proporcionan unos grupos o clúster que puedan ser interesantes de resaltar. Para realizar el análisis clúster, recogeremos las únicas variables númericas que tenemos.
 
 ### Análisis Cluster Jerárquico en variable 'BOROUGH':
 
@@ -704,6 +706,8 @@ plot(1:10, wss, type = "b", pch = 19,
      main = "Método del codo (optimizado)")
 
 ```
+
+Según el método del codo, lo más interesante sería probar hacer un clúster con k = 6. 
 
 #### 3. Realizar el clustering y visualizar:
 
@@ -940,9 +944,7 @@ fviz_silhouette(sil) +
   ggtitle(paste("Índice de Silueta para k =", k)) +
   theme_nyc()
 ```
-
-
-Para un valor de k = 9 se pueden observar cosas interesantes. A pesar de que haya valores negativos, hay algunos cluster bastante bien agrupados con causas bastante similares, como por ejemplo la última rama del endograma, ya que reune todas las causas relacionades con defectos, ya sea en el pavimento, en los frenos...
+Según este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
 
 ## Análisis discriminante
 
