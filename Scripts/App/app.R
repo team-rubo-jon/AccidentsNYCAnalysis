@@ -963,10 +963,10 @@ server <- function(input, output, session) {
   
   
   output$causes_table <- renderDT({
-    dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "jw")
+    dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "cosine")
     rownames(dist_matrix) <- causes_cleaned$CAUSE
     colnames(dist_matrix) <- causes_cleaned$CAUSE
-    hc <- hclust(as.dist(dist_matrix), method = "ward.D2")
+    hc <- hclust(as.dist(dist_matrix), method = "complete")
     k <- input$k_cau
     clusters <- cutree(hc, k = k)
 
