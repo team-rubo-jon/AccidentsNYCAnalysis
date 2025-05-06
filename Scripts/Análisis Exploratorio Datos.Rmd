@@ -45,30 +45,6 @@ library(FactoMineR)
 library(plotly)
 ```
 
-```{r}
-#data <- read.csv("Vehicle_Collisions.csv")
-```
-
-## Lectura datos (temporal)
-
-Jon:
-
-```{r}
-#data <- read.csv("/DatosJon/UPNA/3º Ciencia de Datos/S6/Analisis Multivariante y Visualizacion de Datos/Trabajo/Datos/Vehicle_Collisions.csv")
-```
-
-Rubén:
-
-```{r}
-data <- read.csv("C:/Users/ruben/OneDrive/Escritorio/UPNA/CIENCIA DE DATOS/6ºSemestre/AnalisisMultivarianteVisualizacionDatos/Trabajo Final/Motor_Vehicle_Collisions_-_Crashes.csv")
-```
-
-Fermin:
-
-```{r}
-#data <- read.csv("C:/Users/mintx/Mi unidad/CdD UPNA/.3.2/Analisis multivariante y visualizacion de datos/Trabajo/Vehicle_Collisions.csv")
-```
-
 # INTRODUCCION
 
 En nuestro conjunto de datos, se recoje información sobre accidentes de tráfico en la ciudad de Nueva York. La información proviene de la página de datos del gobierno de EEUU, específicamente del apartado correspondiente a la ciudad de Nueva York.
@@ -80,6 +56,12 @@ Son accidentes en los que se ha rellenado un informe policial, por lo que podrí
 Además, como la forma de recoger los datos ha ido cambiando a lo largo de los años, es posible que hace años no se almacenase información como puede ser las coordenadas, y que en los últimos años con la implementación de dispositivos electrónicos se almacenen las coordenadas exactas de cada accidente. También habrá diferencias en la información dependiendo de la forma en la que el agente de policia correspondiente haya guardado los datos, ya que no son sensores sin fallo los que determinan la mayoría de variables (como pueden ser el tipo de vehículo o factor contribuyentes de la colisión).
 
 Con todo esto, en nuestro trabajo trataremos de analizar las opciones que nos da el conjunto, e ir mostrando los resultados obtenidos visualmente. Y así poder encontrar patrones, agrupar los datos, o ver si podemos encontrar relación entre las variables que nos permitan entender mejor el problema tratado.
+
+# LECTURA DE DATOS
+
+```{r}
+data <- read.csv("Vehicle_Collisions.csv")
+```
 
 # LIMPIEZA INICIAL Y MUESTREO
 
@@ -1180,6 +1162,8 @@ plot_ly(
 
 ```
 
+Los vehículos tipo Sedan y Station Wagon/SUV, que son los más comunes en los accidentes, se asocian estrechamente con causas frecuentes como la distracción o la inatención, así como no ceder el paso. Esto sugiere una relación lógica entre los tipos de vehículos más presentes en las calles y las causas más habituales de accidente.
+
 ### 2. Tipo de vehiculo y hora:
 
 ```{r, warning=FALSE, fig.width=8, fig.height=5}
@@ -1242,6 +1226,7 @@ plot_ly(
   )
 ```
 
+Los taxis se relacionan principalmente con las horas de la madrugada, lo cual resulta coherente, ya que durante esas horas hay menos vehículos particulares en circulación y una mayor proporción de taxis, lo que aumenta su exposición a sufrir accidentes. En cambio, durante el resto del día, la distribución de los accidentes está más equilibrada entre los distintos tipos de vehículos, reflejando la actividad normal de tráfico.
 
 ### 3. Causa del accidente y hora:
 
@@ -1304,6 +1289,8 @@ plot_ly(
   )
 ```
 
+Se observa una mayor asociación entre las causas como saltarse controles de tráfico y las horas de madrugada (alrededor de las 2 a las 5 a.m.), mientras que en franjas horarias como las de entrada o salida del trabajo o del colegio, predominan las causas relacionadas con la distracción, la fatiga o mantener una distancia inadecuada con otros vehículos.
+
 ### 4. Causa del accidente y día de la semana: 
 
 ```{r, warning=FALSE, fig.width=8, fig.height=5}
@@ -1364,6 +1351,71 @@ plot_ly(
     )
   )
 ```
+
+Durante los fines de semana, las causas más frecuentes de los accidentes están relacionadas con la fatiga, la distracción o el hecho de saltarse controles, lo cual podría explicarse por la conducción nocturna más común en esas fechas.
+
+### 5. Tipo de vehículo y día de la semana: 
+
+```{r, warning=FALSE, fig.width=8, fig.height=5}
+contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$DAY_OF_WEEK)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
+
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
+
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
+
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
+```
+
+Desde el jueves hasta el domingo se observa una mayor asociación entre los accidentes y los vehículos tipo Sedan y Taxi. Esto tiene sentido considerando que el tráfico se incrementa en esos días, especialmente durante los fines de semana, cuando es más habitual la presencia de estos vehículos y, en consecuencia, una mayor probabilidad de siniestros.
 
 # CONCLUSIONES
 
