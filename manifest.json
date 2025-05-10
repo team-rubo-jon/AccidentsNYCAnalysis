@@ -1,7 +1,9 @@
 {
   "version": 1,
   "locale": "es_ES",
-  "platform": "4.4.2",
+  "platform": {
+    "R": "4.3.2"
+  }
   "metadata": {
     "appmode": "static",
     "primary_rmd": null,
