@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "locale": "es_ES",
+  "platform": "4.4.2",
+  "metadata": {
+    "appmode": "static",
+    "primary_rmd": null,
+    "primary_html": "Scripts/Análisis-Exploratorio-Datos.html",
+    "content_category": null,
+    "has_parameters": false
+  },
+  "packages": null,
+  "files": {
+    "AccidentesNY.docx": {
+      "checksum": "027ae4441f279f6828218e31d3fa1797"
+    },
+    "data_sampled.csv": {
+      "checksum": "97ccc59ebb5d3f65a143157bb90b3991"
+    },
+    "README.md": {
+      "checksum": "459c66563f6ea1fa58dee03a25406022"
+    },
+    "Scripts/Análisis-Exploratorio-Datos.html": {
+      "checksum": "52fb33375e190569ef4def0ce16b3f48"
+    },
+    "Scripts/Análisis Exploratorio Datos.Rmd": {
+      "checksum": "901ada5b945d3f3482aa16a79dd9a529"
+    },
+    "Scripts/App/app.R": {
+      "checksum": "2ce3b3ca8328d2075cd0699542f0241c"
+    },
+    "Scripts/App/data_sampled.csv": {
+      "checksum": "97ccc59ebb5d3f65a143157bb90b3991"
+    },
+    "Scripts/data_sampled.csv": {
+      "checksum": "97ccc59ebb5d3f65a143157bb90b3991"
+    }
+  },
+  "users": null
+}
