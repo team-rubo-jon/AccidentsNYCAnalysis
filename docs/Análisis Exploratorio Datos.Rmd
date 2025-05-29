@@ -11,6 +11,7 @@ output:
     fig_height: 8
     fig_align: center
     df_print: paged
+output_file: "index.html"
   pdf_document:
     toc: true
 ---
