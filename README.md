@@ -1,6 +1,6 @@
 # ProyectoAMVD
 
-Proyecto final para la asignatura de Análisis Multivariante y Visualización de Datos.
+Proyecto final para la asignatura de Análisis Multivariante y Visualización de Datos
 
 INSTRUCCIONES AULARIO
 
