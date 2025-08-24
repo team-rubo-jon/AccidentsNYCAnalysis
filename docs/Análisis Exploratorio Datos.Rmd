@@ -1,3 +1,4 @@
+<<<<<<< HEAD:Scripts/Análisis Exploratorio Datos.Rmd
 ---
 title: "Análisis Accidentes de Tráfico NY"
 author: "Jon Aguas, Fermín Fernandez y Rubén González"
@@ -1442,3 +1443,1450 @@ Siguiendo con lo anterior, hemos pensado en posibles opciones que daría este da
 
 
 
+=======
+---
+title: "Análisis Accidentes de Tráfico NY"
+author: "Jon Aguas, Fermín Fernandez y Rubén González"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    number_sections: true
+    fig_width: 15
+    fig_height: 8
+    fig_align: center
+    df_print: paged
+output_file: "index.html"
+  pdf_document:
+    toc: true
+---
+
+## Cargar librerías y lectura de datos:
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(viridis)
+library(leaflet)
+library(ggplot2)
+library(ggbiplot)
+library(dplyr)
+library(GGally)
+library(factoextra)
+library(cluster)
+library(tsibble)
+library(psych)
+library(caret)
+library(MASS)
+library(ca)
+library(leaflet)
+library(leaflet.extras)
+library(stringdist)
+library(igraph)
+library(tidygraph)
+library(ggraph)
+library(pROC)
+library(patchwork)
+library(dendextend)
+library(FactoMineR)
+library(plotly)
+```
+
+# INTRODUCCION
+
+En nuestro conjunto de datos, se recoje información sobre accidentes de tráfico en la ciudad de Nueva York. La información proviene de la página de datos del gobierno de EEUU, específicamente del apartado correspondiente a la ciudad de Nueva York.
+
+Cada individuo corresponde a un accidente de tráfico, que se representa como una fila en el conjunto de datos. Las columnas incluyen información como la fecha y hora del accidente, la ubicación, el tipo de vehículo, y los factores contribuyentes al accidente entre otros muchos. Los accidentes se han almacenado desde el 1/01/2013 hasta la actualidad.
+
+Son accidentes en los que se ha rellenado un informe policial, por lo que podrían no incluirse algunos accidentes menores o accidentes que no han sido reportados a la policía. Ya que este informe es necesario para los accidentes donde hay fallecidos, o daños de al menos 1000\$.
+
+Además, como la forma de recoger los datos ha ido cambiando a lo largo de los años, es posible que hace años no se almacenase información como puede ser las coordenadas, y que en los últimos años con la implementación de dispositivos electrónicos se almacenen las coordenadas exactas de cada accidente. También habrá diferencias en la información dependiendo de la forma en la que el agente de policia correspondiente haya guardado los datos, ya que no son sensores sin fallo los que determinan la mayoría de variables (como pueden ser el tipo de vehículo o factor contribuyentes de la colisión).
+
+Con todo esto, en nuestro trabajo trataremos de analizar las opciones que nos da el conjunto, e ir mostrando los resultados obtenidos visualmente. Y así poder encontrar patrones, agrupar los datos, o ver si podemos encontrar relación entre las variables que nos permitan entender mejor el problema tratado.
+
+# LECTURA DE DATOS
+
+```{r}
+data <- read.csv("Vehicle_Collisions.csv")
+```
+
+# LIMPIEZA INICIAL Y MUESTREO
+
+En primer lugar, observamos que el dataset contiene más de 2 millones de filas, pero que además muchas de las variables están prácticamente vacías o con información redundante. Además, dada la naturaleza de los datos geolocalizados, hay ejemplos que no contienen esa información y no nos son de ayuda.
+
+Por tanto, vamos a realizar una primera limpieza del dataset, eliminando tanto variables redundantes o con poca información, como ejemplos que no nos aporten la información suficiente.
+
+## Eliminar variables:
+
+-   *ZIP.CODE* (ya tenemos la variable *BOROUGH* que contiene el barrio)
+-   *ON.STREET.NAME*, *OFF.STREET.NAME*, *CROSS.STREET.NAME* (es información que ya se almacena en las coordenadas)
+-   *VEHICLE.TYPE.CODE.3*, *VEHICLE.TYPE.CODE.4*, *VEHICLE.TYPE.CODE.5* (prácticamente todos son valores nulos)
+-   *CONTRIBUTING.FACTOR.VEHICLE.2*, *CONTRIBUTING.FACTOR.VEHICLE.3*, *CONTRIBUTING.FACTOR.VEHICLE.4*, *CONTRIBUTING.FACTOR.VEHICLE.5* (prácticamente todos son valores nulos)
+-   *COLLISION_ID* (es un identificador que no aporta información)
+-   *LOCATION* (es la combinación exacta de las variables *LATITUDE* Y *LONGITUDE*)
+
+```{r}
+data_cleaned <- data |> 
+  dplyr::select(-ZIP.CODE, -ON.STREET.NAME, -OFF.STREET.NAME, -CROSS.STREET.NAME, -VEHICLE.TYPE.CODE.3, -VEHICLE.TYPE.CODE.4, -VEHICLE.TYPE.CODE.5, -COLLISION_ID, -CONTRIBUTING.FACTOR.VEHICLE.5, -CONTRIBUTING.FACTOR.VEHICLE.4, -CONTRIBUTING.FACTOR.VEHICLE.3, -CONTRIBUTING.FACTOR.VEHICLE.2,-LOCATION)
+```
+
+Con el filtrado realizado, obtenemos un dataset mucho más manejable en cuanto a variables se refiere, que nos permitirá trabajar mejor el problema. Haciendo un pequeño resumen de las variables que nos quedan:
+
+-   CRASH.DATE: Fecha en la que se produció el accidente (Date)
+-   CRASH.TIME: Hora en la que se produció el accidente (Time)
+-   BOROUGH: Barrio de Nueva York donde sucedió el accidente (String)
+-   LATITUDE/LONGITUDE: Coordenadas geográficas (Int)
+-   NUMBER.OF.(PERSONS/PEDESTRIANS/CYCLIST/MOTORIST).(KILLED/INJURIED): Número y tipo de personas implicadas en el accidente, diferenciando heridos y fallecidos (Int)
+-   CONTRIBUTING.FACTOR.VEHICLE: Causa principal del accidente (String)
+-   VEHICLE.TYPE.CODE.1: Tipo del primero vehiculo implicado (String)
+-   VEHICLE.TYPE.CODE.2: Tipo del segundo vehiculo implicado (String)
+
+## Eliminar individuos:
+
+-   Individuos que no tengan *LATITUDE* y/o *LONGITUDE* (No nos sirven para localizar el accidente)
+-   Individuos que no tengan ningún Vehiculo implicado en *VEHICLE.TYPE.CODE*
+-   Individuos que no tengan barrio *BOROUGH* (ya que tenemos los suficientes que si tienen esa información)
+-   Individuos que no tengan una razon que haya causado el accidente *CONTRIBUTING.FACTOR.VEHICLE*
+-   Individuos con valor de localización erronea (Coordenadas 0) *LONGITUDE*
+
+```{r}
+data_cleaned <- data_cleaned |> 
+  filter(
+    !is.na(LATITUDE) & !is.na(LONGITUDE),
+    !(is.na(VEHICLE.TYPE.CODE.1) & is.na(VEHICLE.TYPE.CODE.2)),
+    !(VEHICLE.TYPE.CODE.1 == "" & VEHICLE.TYPE.CODE.2 == ""),
+    !(BOROUGH == ""),
+    !(CONTRIBUTING.FACTOR.VEHICLE.1 == "Unspecified"),
+    !(CONTRIBUTING.FACTOR.VEHICLE.1 == ""),
+    !(LATITUDE==0),
+    !(LONGITUDE==0))
+```
+
+## Renombrar variables:
+
+Antes de empezar a trabajar con los datos, vamos a renombrar ciertas variables para facilitar la programación.
+
+```{r}
+data_cleaned <- data_cleaned |> 
+  rename(
+    DATE = CRASH.DATE,
+    TIME = CRASH.TIME,
+    NUM_PERSONS_INJURED = NUMBER.OF.PERSONS.INJURED,
+    NUM_PERSONS_KILLED = NUMBER.OF.PERSONS.KILLED,
+    NUM_PEDESTRIANS_INJURED = NUMBER.OF.PEDESTRIANS.INJURED,
+    NUM_PEDESTRIANS_KILLED = NUMBER.OF.PEDESTRIANS.KILLED,
+    NUM_CYCLIST_INJURED = NUMBER.OF.CYCLIST.INJURED,
+    NUM_CYCLIST_KILLED = NUMBER.OF.CYCLIST.KILLED,
+    NUM_MOTORIST_INJURED = NUMBER.OF.MOTORIST.INJURED,
+    NUM_MOTORIST_KILLED = NUMBER.OF.MOTORIST.KILLED,
+    CAUSE = CONTRIBUTING.FACTOR.VEHICLE.1,
+    VEHICLE_1 = VEHICLE.TYPE.CODE.1,
+    VEHICLE_2 = VEHICLE.TYPE.CODE.2
+  )
+  
+```
+
+## Eliminación de filas incompletas:
+
+### Personas afectadas:
+
+Vamos a comprobar si el número de personas heridas o fallecidas coincide con el número de heridos o fallecidos que se han dado en la fila. Para ello, vamos a crear una tabla con los diferentes tipos de heridos y fallecidos, y luego vamos a comprobar si el número total coincide con el número de personas heridas o fallecidas que se han dado en la fila.
+
+```{r}
+type_injured <- data_cleaned |> 
+  dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
+  pivot_longer(cols = everything(), names_to = 'TYPE_OF_INJURED', values_to = 'NUMBER')
+
+# Calculamos el total de cada tipo:
+type_injured |> 
+  group_by(TYPE_OF_INJURED) |> 
+  summarise(NUMBER = sum(NUMBER)) |> 
+  arrange(desc(NUMBER))
+
+# Ahora mostramos los indices de los que no coinciden:
+filas_erroneas <- data_cleaned |> 
+  dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED) |> 
+  mutate(ROW_ID = row_number(),
+         TOTAL_NUMBER_INJURED = rowSums(across(c(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED))),
+         TOTAL_NUMBER_KILLED = rowSums(across(c(NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)))) |>
+  dplyr::select(ROW_ID, NUM_PERSONS_INJURED, TOTAL_NUMBER_INJURED, NUM_PERSONS_KILLED, TOTAL_NUMBER_KILLED) |> 
+  filter(NUM_PERSONS_INJURED != TOTAL_NUMBER_INJURED | NUM_PERSONS_KILLED != TOTAL_NUMBER_KILLED)
+
+head(filas_erroneas)
+```
+
+Podemos ver como existen filas que no cumplen, por ello eliminamos las filas erroneas, aquellas filas cuyo numero de personas heridas o fallecidas no coincide con el total de heridos o fallecidos que se han dado en la fila.
+
+```{r}
+indices_erroneos <- filas_erroneas |> 
+  pull(ROW_ID)
+
+data_cleaned <- data_cleaned[-indices_erroneos, ]
+
+```
+
+## Eliminacion de valores incorrectos de la variable 'CAUSE':
+
+```{r}
+data_cleaned <- data_cleaned |> 
+  mutate(CAUSE = recode(CAUSE,
+    "Cell Phone (hand-Held)" = "Cell Phone (hand-held)",
+    "Drugs (Illegal)" = "Drugs (illegal)",
+    "Illnes" = "Illness",
+    "Other Electronic Device" = "Other Devices",
+    "Drugs (illegal)" = "Drugs (illegal)",
+    "Unspecified" = "Unspecified",
+    "Pedestrian/Bicyclist/Other Pedestrian Error/Confusion" = "Pedestrian Error/Confusion",
+    "Aggressive Driving/Road Rage" = "Aggressive Driving"
+  )) |> 
+  filter(CAUSE != 1, CAUSE != 80) 
+```
+
+## Formatear variable 'DATE':
+
+```{r}
+data_cleaned <- data_cleaned |> 
+  mutate(DATE = as.Date(DATE, format = "%m/%d/%Y"))
+```
+
+## Estandarizar strings de las variables:
+
+Para facilitar el trabajo con los datos y evitar valores duplicados, vamos a estandarizar las variables CAUSE, VEHICLE_1 y VEHICLE_2 convirtiéndolas completamente a mayúsculas.
+
+```{r}
+data_cleaned$VEHICLE_1 <- toupper(data_cleaned$VEHICLE_1)
+data_cleaned$VEHICLE_2 <- toupper(data_cleaned$VEHICLE_2)
+data_cleaned$CAUSE <- toupper(data_cleaned$CAUSE)
+```
+
+## Muestreo:
+
+Una vez eliminados los individuos que no son de interes, el dataset se reduce a 888068 filas. Seguimos teniendo demasiadas observaciones, por lo que para trabajar con los datos de forma más comoda hemos decidido hacer un muestreo de 20.000 observaciones. Cabe destacar que si bien para tener los mismos resultados fijamos una semilla, durante el trabajo en ciertos analisis hemos tomado muestras diferentes para asegurarnos de que los resultados eran similares y no había demasiada variación debido a la muestra.
+
+```{r}
+set.seed(123)
+data_sampled <- sample_n(data_cleaned, 20000)
+```
+
+Como a partir de ahora trabajaremos con esta muestra en lugar del dataset completo, por comodidad lo almacenaremos en un nuevo archivo para solo tener que leer este.
+
+```{r}
+write.csv(data_sampled, "data_sampled.csv", row.names = FALSE)
+write.csv(data_sampled, "App/data_sampled.csv", row.names = FALSE)
+```
+
+### Leer muestra:
+
+```{r}
+data_sampled <- read.csv("data_sampled.csv")
+```
+
+# ANALISIS DESCRIPTIVO
+
+Una vez obtenido el dataset con el que trabajaremos, vamos a visualizar las diferentes variables y sus comportamientos para tratar de entender mejor con que datos estamos trabajando antes de aplicar las diferentes técnicas.
+
+Además, también mostraremos la matriz de correlación entre las variables numéricas, para ver si hay alguna relación entre ellas.
+
+Antes de empezar con las visualizaciones, vamos a crear un tema personalizado para los gráficos que vamos a mostrar. De esta manera, todos los gráficos tendrán el mismo estilo y será más fácil de leer.
+
+## Tema personalizado
+
+Tanto en el informe como en la app, hemos definido un tema personalizado con colores característicos de Nueva York y particularmente los vehiculos, en el que destaca la presencia del amarillo color Taxi, y los grises del asfalto para dar contraste.
+
+```{r}
+theme_nyc <- function() {
+  theme_minimal(base_family = "Roboto Condensed") +
+    theme(
+      plot.background = element_rect(fill = "#F4F4F4", color = NA),
+      panel.background = element_rect(fill = "#F4F4F4", color = NA),
+      panel.grid.major = element_line(color = "#DADADA"),
+      panel.grid.minor = element_blank(),
+      axis.title = element_text(color = "#2E2E2E", size = 16, face = "bold"),
+      axis.text = element_text(color = "#2E2E2E"),
+      plot.title = element_text(color = "#1F3B73", size = 20, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(color = "#2E2E2E", hjust = 0.5),
+      legend.background = element_rect(fill = "#F4F4F4"),
+      legend.key = element_rect(fill = "#F4F4F4"),
+      legend.text = element_text(color = "#2E2E2E"),
+      strip.background = element_rect(fill = "#FFD100"),
+      strip.text = element_text(color = "#2E2E2E", face = "bold")
+    )
+}
+```
+
+
+## Variable 'DATE':
+
+Vamos a hacer una representación dual, en la que combinamos el gráfico de barras y el gráfico de líneas, para mostrar la frecuencia de accidentes según el mes o año. Para ello, vamos a crear una nueva variable que contenga la fecha en formato mes y otra en año.
+
+```{r, warning=FALSE}
+data_time <- data_sampled |>
+  mutate(DATE_MONTH = yearmonth(DATE),
+         DATE_YEAR = year(DATE)) |>
+  add_count(DATE, name = "FREQ_DAY") |>
+  add_count(DATE_MONTH, name = "FREQ_MONTH") |>
+  add_count(DATE_YEAR, name = "FREQ_YEAR") |>
+  dplyr::select(DATE, DATE_MONTH, DATE_YEAR, FREQ_DAY, FREQ_MONTH, FREQ_YEAR, BOROUGH) |>
+  arrange(DATE)
+
+
+# Frecuencia de datos mensuales:
+data_time |> 
+  group_by(DATE_MONTH) |>
+  summarise(FREQ = sum(FREQ_MONTH, na.rm = TRUE), .groups = "drop") |>
+    ggplot(aes(x = DATE_MONTH, y = FREQ)) +
+    geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.8) +
+    geom_line(color = "#1F3B73", size = 1.2) +
+    geom_point(color = "#FF4C4C", size = 2) +
+    labs(title = "Frecuencia de Accidentes por Mes", x = "Fecha", y = "Frecuencia") +
+    theme_nyc()
+
+# Frecuencia de datos anuales:
+data_time |> 
+  group_by(DATE_YEAR) |>
+  summarise(FREQ = sum(FREQ_YEAR, na.rm = TRUE), .groups = "drop") |>
+    ggplot(aes(x = DATE_YEAR, y = FREQ)) +
+    geom_bar(stat = "identity", fill = "#1F3B73", alpha = 0.8) +
+    geom_line(color = "#1F3B73", size = 1.2) +
+    geom_point(color = "#FF4C4C", size = 2) +
+    labs(title = "Frecuencia de Accidentes por Año", x = "Fecha", y = "Frecuencia") +
+    theme_nyc()
+
+```
+
+En estos gráficos observamos como ha ido evolucionando la frecuencia de accidentes a lo largo del tiempo, ya sea con datos acumulados mensuales o anuales. Se puede ver claramente como en el año del covid la frecuencia de accidentes disminuye significativamente, debido a que la gente no se movía tanto como en años anteriores. Sin embargo, la frecuencia de accidentes se mantiene casi constante, incluso llegando a disminuir en en 2022. Esto tambien se puede deber a que a raiz del covid la gente ha cambiado su forma de moverse, y ahora se mueven más en bicicleta o andando, lo que puede hacer que haya más accidentes de este tipo. También, hemos comprobado que después del covid, en EEUU, modificaron leyes de tráfico que hizo que la gente sea mas consciente de la seguridad vial, y por lo tanto, haya menos accidentes.
+
+
+A continuación, vamos a representar la frecuencia total acumulada por cada mes. Es decir, la suma de frecuencia para cada uno de los meses en todos los años pasados:
+
+```{r, warning=FALSE}
+data_time |> 
+  group_by(DATE_MONTH) |> 
+  summarise(FREQ_MONTH = sum(FREQ_MONTH)) |> 
+  mutate(MONTH = month(DATE_MONTH, label = TRUE)) |> 
+  ggplot(aes(x = MONTH, y = FREQ_MONTH)) + 
+    geom_histogram(stat = "identity", fill = "#1F3B73", alpha = 0.8) +
+    labs(title = "Frecuencia de accidentes acumulada por mes", x = "Fecha", y = "Frecuencia") +
+    theme_nyc()
+```
+
+En este gráfico observamos cuales son los meses que máyor frecuencia de accidentes tienen. Observamos como a principios de verano es cuando más alta es la frecuencia (mayo, junio y julio) tal vez porque la gente se mueve más por el buen tiempo, pero aún teniendo que ir a trabajar. En agosto y septiembre se reduce la frecuencia, tal vez por el efecto de las vacaciones. Por otra parte, sin duda los meses de febrero (por tener 29 días) y abril (tal vez por ser el mes en el que más afecto el confinamiento de 2020) son los que menor frecuencia de accidentes tienen.
+
+
+## Variable 'BOROUGH':
+
+En el siguiente apartado, vamos a tratar de ver la distribución de los accidentes por distrito, y su evolución con el paso del tiempo:
+
+```{r, warning=FALSE}
+data_sampled |> 
+  ggplot(aes(x = BOROUGH)) +
+  geom_bar(fill = "#1F3B73") +
+  geom_text(aes(label = after_stat(count)), stat = "count", vjust = -0.5, size = 3) +
+  labs(title = "Distribución de Accidentes por Distrito",
+       x = "Barrio", y = "Número de Accidentes") +
+  theme_nyc()
+```
+
+Observamos como Brooklyn Queens y Manhattan acumulan el mayor número de accidentes. Esto concuerda con que son los distritos más grandes y céntricos de Nueva York. Se observa como Bronx y State Island muestran una frecuencia mucho más inferior, ya que son distritos periféricos.
+
+Vamos a ver la evolución de la frecuencia de accidentes por cada distritos:
+
+```{r, warning=FALSE}
+data_time |>
+  group_by(DATE_MONTH, BOROUGH) |>
+  summarise(accidents = sum(FREQ_DAY, na.rm = TRUE), .groups = "drop") |> 
+  ggplot(aes(x = DATE_MONTH, y = accidents, color = BOROUGH)) +
+    geom_line(size = 1.1) +
+    geom_point(size = 1.5) +
+    labs(title = "Evolución Temporal de Accidentes por Distrito",
+         x = "Fecha", y = "Número de Accidentes", color = "Distrito") +
+    theme_nyc() +
+    scale_color_brewer(palette = "Set1") +
+    theme(legend.position = "bottom")
+```
+Aqui observamos el mismo patrón de frecuencia que hemos analizado anteriormente, donde baja drásticamente a partir del covid. Además, parece que el comportamiento de todos los distritos es similar, y aumentan o disminuyen de manera correlacionada. También parece que el distrito del Bronx no disminuye tanto la frecuencia a partir de 2020, mostrándose por encima de Manhattan varias veces. También podemos observar como Manhattan era el distrito con mayor frecuencia hasta 2016, y desde 2017 hasta 2020 cede ese puesto a Brooklyn y Queens.
+
+Por otrol lado, también podemos observar como Staten Island es el barrio que menos accidentes tiene, y además es el que menos ha disminuido la frecuencia a partir de 2020. Esto puede ser debido a que es un barrio más residencial, con menos tráfico y con menos pobalción, por lo que los accidentes son menos frecuentes.
+
+
+## Variables 'LATITUDE' y 'LONGITUDE':
+
+En cuanto a las variables de localización, al ser un dataset con datos geográficos uno de los análisis importantes que debemos hacer es situando los accidentes en su ubicación correspondiente. Esto nos permite ver como están distrubuidos en la ciudad los accidentes.
+
+En primer lugar, representaremos cada accidente mediante un punto rojo:
+```{r, fig.width=8, fig.height=5, results='asis', echo=FALSE}
+data_sampled |> 
+  leaflet() |> 
+  addTiles() |> 
+  addCircleMarkers(
+    lng = ~LONGITUDE,
+    lat = ~LATITUDE,
+    radius = 2,
+    color = "red",
+    stroke = FALSE,
+    fillOpacity = 0.6,
+    popup = ~paste("Lat:", LATITUDE, "<br>Lon:", LONGITUDE)
+  )
+```
+
+Observamos como prácticamente la totalidad del mapa queda cubierta de punto rojos, si bien es cierto que en distritos como Staten Island se aprecia menos densidad, tal y como intuíamos de los histogramas realizados previamente.
+
+Para tratar de ver algo más claro, vamos a representar un mapa de calor, en el que las zonas más calientes representan aquellos accidentes en los que ha habido heridos o fallecidos (que ponderan de forma más significativa):
+
+```{r, fig.width=8, fig.height=5}
+leaflet(data_sampled) %>%
+  addTiles() %>%
+  setView(lng = -73.9, lat = 40.7128, zoom = 10) %>%
+  addHeatmap(
+    lng = ~LONGITUDE,
+    lat = ~LATITUDE,
+    intensity = ~ 5*NUM_PERSONS_KILLED + NUM_PERSONS_INJURED,
+    radius = 15,
+    blur = 20,
+    max = 0.05,
+    group = "heat"
+  )
+```
+
+Este mapa nos ofrece información más relevante. Aunque Manhattan concentra un gran número de accidentes, no presenta una alta densidad de heridos o fallecidos, como cabría esperar. Esto podría deberse a que la mayoría de los siniestros ocurren a baja velocidad en zonas urbanas. En contraste, distritos como Staten Island muestran una mayor densidad de accidentes con heridos, a pesar de registrar una menor frecuencia total de accidentes.
+
+En la aplicación hemos desarrollado los mapas de forma interactiva, pudiendo aplicar diferentes filtros e intervalos de tiempo variables, para poder ver de una forma más clara y dinámica la evolución de los accidentes a lo largo del tiempo.
+
+
+## Variables de Conteo de Personas Afectadas:
+
+Ahora, podemos comprobar el número de peatones, ciclistas y motoristas que han resultado heridos o muertos en los accidentes, junto al total de heridos y muertos:
+
+```{r, warning=FALSE}
+    datos_resumen <- data_sampled |> 
+      summarise(
+        Total_Heridos = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+        Heridos_Pedestrians = sum(NUM_PEDESTRIANS_INJURED, na.rm = TRUE),
+        Heridos_Cyclists = sum(NUM_CYCLIST_INJURED, na.rm = TRUE),
+        Heridos_Motorists = sum(NUM_MOTORIST_INJURED, na.rm = TRUE),
+        Total_Muertos = sum(NUM_PERSONS_KILLED, na.rm = TRUE),
+        Muertos_Pedestrians = sum(NUM_PEDESTRIANS_KILLED, na.rm = TRUE),
+        Muertos_Cyclists = sum(NUM_CYCLIST_KILLED, na.rm = TRUE),
+        Muertos_Motorists = sum(NUM_MOTORIST_KILLED, na.rm = TRUE)
+      )
+    
+    datos_long <- datos_resumen |> 
+      pivot_longer(cols = everything(),
+                   names_to = c("Estado", "Tipo"),
+                   names_sep = "_",
+                   values_to = "Total")
+    
+    ggplot(datos_long, aes(x = Tipo, y = Total, fill = Tipo)) +
+      geom_col(show.legend = TRUE) +
+      geom_text(aes(label = Total), vjust = -0.5, size = 4, color = "#2E2E2E") +
+      facet_wrap(~Estado, scales = "free_y") +
+      labs(
+        title = "Total de personas heridas y muertas por tipo",
+        x = NULL,
+        y = "Total",
+        fill = "Tipo de persona"
+      ) +
+      theme_nyc() +
+      theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = "bottom"
+      )
+```
+
+En este gráfico observamos que en general, la frecuencia de heridos es mucho mayor respecto a fallecidos (6472 frente a 23). También observamos que el grupo más vulnerable son los motoristas, tanto en cuanto a heridos como a fallecidos se refiere. Seguidos de los peatones y ciclistas. Si bien, considerando que el número de ciclistas es muy inferior al de peatones, y apenas son la mitad de heridos, tal vez podríamos decir que ser ciclista si que conlleva un mayor riesgo de resultar herido en proporción.
+
+
+Además, pese a ser variables enteras, como son numéricas, puede ser interesante mostrar un histograma de cada una de ellas para ver si hay normalidad en los datos:
+
+```{r, message=FALSE, warning=FALSE}
+vars <- c(
+  "NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED",
+  "NUM_PERSONS_KILLED", "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED"
+)
+
+hist_list <- lapply(vars, function(var) {
+  ggplot(data_sampled, aes_string(x = var)) +
+    geom_histogram(bins = 30, fill = "#1F77B4", color = "white") +
+    labs(title = var, x = NULL, y = NULL) +
+    theme_nyc()
+})
+
+wrap_plots(hist_list, ncol = 4)
+```
+
+Observamos como la distribución en todas las variables llega al máximo en el 0, y va reduciéndose drásticamente. Lo cual es comprensible ya que se trata del número de personas heridas en accidentes, y en los accidentes leves no suele haber ningún herido.
+
+Esto nos indica que no tenemos normalidad, lo cual habrá que tenerlo en cuenta a la hora de aplicar diferentes técnicas de análisis multivariante.
+
+En el siguiente apartado, veremos la matriz de correlaciones entre todas las variables de conteo de personas afectadas. Como no tenemos normalidad, aplicaremos la matriz de correlaciones de Spearman:
+
+```{r, message=FALSE, warning=FALSE}
+data_short <- data_sampled[, c("NUM_PERSONS_INJURED", "NUM_PEDESTRIANS_INJURED", "NUM_CYCLIST_INJURED", "NUM_MOTORIST_INJURED", "NUM_PERSONS_KILLED",   "NUM_PEDESTRIANS_KILLED", "NUM_CYCLIST_KILLED", "NUM_MOTORIST_KILLED")]
+
+colnames(data_short) <- c("Total Her.", "Peatones Her.", "Ciclistas Her.", "Motoristas Her.", "Total Fall.", "Peatones Fall.", "Ciclistas Fall.", "Motoristas Fall.")
+
+ggpairs(
+  data_short,
+  title = "Matriz de correlaciones Spearman",
+  upper = list(continuous = wrap("cor", size = 4, method = "spearman")),
+  lower = list(continuous = wrap("points", alpha = 0.5)),
+  diag = list(continuous = wrap("densityDiag"))
+) +
+  theme_nyc()
+```
+
+En conclusión, la matriz de correlaciones solamente muestra relaciones fuertes entre variables agregadas y sus subcomponentes, como entre personas heridas y motoristas heridos (ya que dentro de personas heridas están los motoristas, y además hemos visto que es el tipo que más contribuye). Sin embargo esta correlación es evidente, y no aporta ninguna información de valor.
+
+En cuanto a las variables por separado sin datos repetidos, ninguna muestra correlación significativa con las demás, lo cual sugiere que no se comportan del mismo modo los tipos diferentes de implicados, y que no podemos explicar el número de heridos/fallecidos de ningún tipo basandónos en otro de los tipos.
+
+
+## Variable 'CAUSE':
+
+Primero, vamos a ver la frecuencia de las distintas causas de los accidentes registrados. Para ello, vamos a crear una tabla con los diferentes factores contribuyentes y su frecuencia:
+
+```{r}
+causes_cleaned <- data_sampled |> 
+  count(CAUSE, name = "FREQUENCY") |>  
+  arrange(desc(FREQUENCY))
+```
+
+Nos ayudamos de un gráfico de barras para mostrar las frecuencias.
+
+```{r, fig.height=10, warning=FALSE}
+causes_cleaned |> 
+  ggplot(aes(x = reorder(CAUSE, FREQUENCY), y = FREQUENCY)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +
+  labs(title = "Frecuencia de Factores Contribuyentes de los Accidentes",
+       x = "Causas del Accidente",
+       y = "Frecuencia") +
+  theme_nyc()
+```
+
+Se observa que una gran parte de los accidentes se debe a distracciones. Además, aunque existen otras causas con una frecuencia significativa, muchas de las causas menos comunes apenas concentran accidentes. Esto sugiere la posibilidad de aplicar un análisis de agrupamiento (clustering) en el futuro, con el objetivo de reducir y simplificar el número de causas en grupos más representativos.
+
+
+## Variables 'VEHICLE_1' y 'VEHICLE_2':
+
+Por ultimo, analizaremos las variables correspondientes al tipo de vehículo principal y secundario implicados en el accidente. De forma similar a la variable anterior, es una variable categórica, por lo que primero vamos a crear una tabla para cada variable con su frecuencia:
+
+```{r}
+V1_cleaned <- data_sampled |> 
+  count(VEHICLE_1, name = "FREQUENCY_V1") |>  
+  arrange(desc(FREQUENCY_V1))
+
+V2_cleaned <- data_sampled |> 
+  count(VEHICLE_2, name = "FREQUENCY_V2") |>  
+  arrange(desc(FREQUENCY_V2))
+```
+
+Ahora vamos a graficar los tipos de vehículos y sus frecuencias para *VEHICLE_1* y *VEHICLE_2*. Para ello, vamos a usar un gráfico de barras. Comenzamos con la primera variable:
+
+```{r,fig.height=10,  warning=FALSE}
+V1_cleaned |> 
+  filter(FREQUENCY_V1 > 5) |> 
+  ggplot(aes(x = reorder(VEHICLE_1, FREQUENCY_V1), y = FREQUENCY_V1)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +
+  labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
+       x = "Vehículos",
+       y = "Frecuencia") +
+  theme_nyc()
+```
+
+Hemos mostrado solamente los vehiculos que tienen una frecuencia de almenos 5, ya que los inferiores generalmente se tratan de errores de tipografía, y por no extender en exceso el gráfico.
+
+De manera similar, mostramos la segunda variable:
+
+```{r, fig.height=10, warning=FALSE}
+V2_cleaned |> 
+  filter(FREQUENCY_V2 > 5, VEHICLE_2 != '') |> 
+  ggplot(aes(x = reorder(VEHICLE_2, FREQUENCY_V2), y = FREQUENCY_V2)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() +
+  labs(title = "Frecuencia de Tipos de Vehículos (Primer involucrado)",
+       x = "Vehículos",
+       y = "Frecuencia") +
+  theme_nyc()
+```
+
+En ambos casos observamos que el vehículo más implicado son los coches Sedan habituales como cabía esperar, y va disminuyendo el número drásticamente al resto de tipos de vehículos.
+
+# METODOLOGÍA MULTIVARIANTE
+
+## PCA
+
+Vamos a realizar un análisis de componentes principales (PCA) para reducir la dimensionalidad de los datos y ver si podemos encontrar patrones en ellos. Sin embargo, lo primero que vamos hacer es comprobar si tiene sentido hacer un PCA con los datos numéricos que tenemos, ya que no existen demasiadas variables y ya hemos podido comprobar que no presentan normalidad. Además, en la matriz de correlación ya hemos visto que no hay correlaciones significativas en los datos, lo cual puede complicarnos realizar las combinaciones necesarias para reducir el número de componentes principales.
+
+Sin embargo, para tomar la decisión con un criterio más preciso, hemos decidido aplicar las metodologías de adecuación de la muestra que vimos para el análisis factorial mediante el test de KMO. Nos puede dar una idea también al trabajar con PCA, ya que también necesitamos correlación entre las variables, y explicar una parte significativa de la varianza en ambos métodos.
+
+Aplicamos el test de KMO sobre las variables numéricas. Un valor menor o igual a 0.5 indica que los datos no son adecuados:
+
+```{r}
+datos_numeric <- data_sampled |> 
+  dplyr::select(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+
+KMO(datos_numeric)
+```
+
+Observamos el valor MSA general es de 0.47, por lo que no parece interesante realizar un PCA tal y como intuíamos. Sin embargo, vamos a realizar un gráfico de PCA sobre las dos componentes principales, para ver si aun así podemos extraer algún comportamiento interesante.
+
+```{r,message=FALSE, warning=FALSE}
+datos_pca <- data_sampled |> 
+  select(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+
+pca_result <- prcomp(datos_pca, center = TRUE, scale. = TRUE)
+
+fviz_pca_var(pca_result, repel = TRUE, labelsize = 3, col.var = "contrib") +
+  scale_color_viridis(option = "C") +
+  theme_nyc()
+```
+
+Observamos que usando dos componentes, el porcentaje de variabilidad explicada apenas supera el 35%, lo cual no es lo ideal. Podemos extraer que las variables de heridos contribuyen de una manera más significativa que las variables sobre fallecidos. También podemos observar que el número de motoristar heridos y fallecidos presentan la misma dirección, lo que propone que, a mayor numero de heridos, mayor número de fallecidos. En cuanto a las otras variables, observamos que toman la dirección más opuesta posible, lo que nos indica que la correlación entre ellas es la mínima posible. Estas conclusiones respaldan el hecho de que la variabilidad explicada por las componentes principales sea tan baja.
+
+Vamos a mostrar el gráfico de la varianza explicada por cada componente, para ver como va creciendo hasta el 100%, que se dará con las 6 variables:
+
+```{r,message=FALSE, warning=FALSE}
+pca_summary <- summary(pca_result)
+
+var_exp_cum <- pca_summary$importance[3, ] * 100
+
+data.frame(Componente = 1:length(var_exp_cum),
+           Varianza_Acumulada = var_exp_cum) %>%
+  ggplot(aes(x = Componente, y = Varianza_Acumulada)) +
+  geom_bar(stat = "identity", fill = "steelblue", alpha = 0.6) +
+  geom_line(color = "red", size = 1) +
+  geom_point(color = "red", size = 3) +
+  labs(title = "Varianza acumulada explicada por cada componente",
+       x = "Componente Principal",
+       y = "Varianza acumulada (%)") +
+  theme_nyc()
+```
+
+Podemos observar que prácticamente todas las componentes aportan la misma cantidad de variabilidad explicada, debido a que no hay correlacion entre las variables como hemos observado antes. Además, observamos que con 5 componentes apenas llegamos al 85% de variabilidad explicada, por lo que una vez más no parece que podamos reducir la dimensionalidad de forma efectiva mediante PCA, ya que perderíamos demasiada información.
+
+Por último, vamos a comprobar si es interesante analizar la posibilidad de realizar PCA separando las variables por heridos y muertos en lugar de todos juntos. Realizaremos el test de KMO del mismo modo que ahora, para ver si en estos casos sería interesante con dicha muestra.
+
+### PCA con heridos
+
+```{r}
+datos_heridos <- data_sampled |> 
+  dplyr::select(NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED)
+
+datos_heridos_scaled <- scale(datos_heridos)
+
+KMO(datos_heridos_scaled)
+```
+
+De manera similar al caso general, obtenemos que no es interesante realizar un PCA, ya que el KMO vuelve a rechazar la idea de realizar el PCA, con el mismo valor de 0.47, inferior a 0.5.
+
+#### PCA con muertos
+
+```{r}
+datos_heridos <- data_sampled |> 
+  dplyr::select(NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+
+datos_heridos_scaled <- scale(datos_heridos)
+
+KMO(datos_heridos_scaled)
+```
+
+Y por último, tampoco es interesante con los datos de solamente los fallecidos, obteniendose un KMO de 0.5. Como comentábamos al principio, son resultados esperables al haber observado previamente la matriz de correlaciones y la naturaleza propia de nuestras variables numéricas, por lo que deberemos centrarnos en realizar otro tipo de técnicas más apropiadas a nuestro problema.
+
+Es interesante mencionar que, teniendo en cuenta los valores obtenidos en los tests de KMO, no vamos a considerar tampoco la posibilidad de realizar un análisis factorial, ya que el resultado del test es un claro indicador de que no es apropiado.
+
+
+## Clusterizaciones
+
+Vamos a comprobar si podemos encontrar alguna relación entre distintas variables y nos proporcionan unos grupos o clúster que puedan ser interesantes de resaltar. Para realizar el análisis clúster, recogeremos las únicas variables númericas que tenemos.
+
+### Análisis Cluster variables numéricas:
+
+#### 1. Seleccionar variables numéricas relevantes:
+
+```{r}
+data_cluster <- data_sampled |> 
+  dplyr::select(NUM_PERSONS_INJURED, NUM_PEDESTRIANS_INJURED, NUM_CYCLIST_INJURED, NUM_MOTORIST_INJURED,
+         NUM_PERSONS_KILLED, NUM_PEDESTRIANS_KILLED, NUM_CYCLIST_KILLED, NUM_MOTORIST_KILLED)
+
+data_scaled <- scale(data_cluster) #Normalizar
+```
+
+#### 2. Determinar el número óptimo de clusters:
+
+```{r}
+wss <- vector()
+set.seed(123)
+for (k in 1:10) {
+  km <- kmeans(data_scaled, centers = k, nstart = 5)
+  wss[k] <- km$tot.withinss
+}
+
+plot(1:10, wss, type = "b", pch = 19,
+     xlab = "Número de clusters",
+     ylab = "Suma de cuadrados intra-clúster (WSS)",
+     main = "Método del codo (optimizado)")
+
+```
+
+Según el método del codo, lo más interesante sería probar hacer un clúster con k = 6. 
+
+#### 3. Realizar el clustering y visualizar:
+
+```{r, warning=FALSE}
+set.seed(123)
+kmeans_result <- kmeans(data_scaled, centers = 6, nstart = 25)
+
+fviz_cluster(kmeans_result, data = data_scaled,
+             ellipse.type = "norm",
+             geom = "point",
+             palette = "jco",
+             ggtheme = theme_minimal()) +
+  theme_nyc()
+
+```
+
+Vemos que no se obtiene nada claro ni interesante para analizar. Vamos a probar con otro tipo de clustering, dada la naturaleza de las variables, nos parecía interesante probar el clustering jerárquico.
+
+#### Clustering jerarquico
+
+```{r}
+dist_matrix <- dist(data_scaled, method = "euclidean")
+
+# clustering jerárquico
+hc <- hclust(dist_matrix, method = "complete")
+```
+
+
+```{r}
+# dendrograma
+plot(hc, labels = FALSE, hang = -1, main = "Dendrograma de Clustering Jerárquico")
+
+# cortar
+rect.hclust(hc, k = 3, border = "red")
+clusters <- cutree(hc, k = 3)
+table(clusters)
+```
+
+El análisis de clúster no aporta información relevante ni resulta fácilmente interpretable. No obstante, se planteó una alternativa consistente en agrupar los datos de heridos y fallecidos por distrito, con el objetivo de analizar si existe algún tipo de relación o patrón entre los distritos en función de estas variables.
+
+### Análisis Cluster Jerárquico por distrito:
+
+#### Agrupar los datos por distritos y clusterizar:
+
+```{r}
+data_borough_sum <- data_sampled |> 
+  group_by(BOROUGH) |> 
+  summarise(
+    total_injured = sum(NUM_PERSONS_INJURED, na.rm = TRUE),
+    total_killed = sum(NUM_PERSONS_KILLED, na.rm = TRUE)
+  ) |> 
+  na.omit()
+```
+
+
+Escalar los datos:
+
+```{r}
+data_scaled <- data_borough_sum |> 
+  dplyr::select(-BOROUGH) |> 
+  scale()
+```
+
+Clustering jerárquico:
+
+```{r, warning=FALSE}
+dist_matrix <- dist(data_scaled)
+hc <- hclust(dist_matrix, method = "complete")
+
+# Dendrograma
+dend <- as.dendrogram(hc)
+dend <- color_branches(dend, k = 3)
+dend <- set(dend, "labels", data_borough_sum$BOROUGH[hc$order])
+
+factoextra::fviz_dend(
+  dend,
+  k = 3,
+  horiz = TRUE,
+  rect = TRUE,
+  rect_border = "#1F3B73",
+  rect_fill = FALSE,
+  main = "Dendrograma de los Distritos",
+  cex = 0.7,
+  color_labels_by_k = TRUE,
+) + 
+theme_nyc()
+```
+
+El análisis de clúster jerárquico aplicado a los distritos de Nueva York ha dado como resultado una agrupación en tres clústeres bien diferenciados: por un lado, se agrupan el Bronx y Manhattan; por otro, Brooklyn y Queens; y finalmente, Staten Island queda separado en un grupo propio. Esta clasificación cobra sentido cuando se analiza en función de la densidad de población de cada distrito.
+
+Manhattan, con 27.330 habitantes por kilómetro cuadrado, y el Bronx, con 12.831, presentan las mayores densidades de población entre los distritos analizados. Esta alta concentración de personas suele asociarse a una mayor exposición al tráfico, lo que incrementa la probabilidad de accidentes y, por tanto, de víctimas. Esto justificaría que ambos formen parte del mismo grupo, ya que comparten patrones similares tanto en cuanto a intensidad del tráfico como al número total de heridos y fallecidos.
+
+En un segundo grupo aparecen Brooklyn y Queens, con densidades de población intermedias (14.400 y 8.104,7 habitantes por km² respectivamente). Aunque Brooklyn supera al Bronx en densidad, su comportamiento en términos de accidentes se asemeja más al de Queens, probablemente por la estructura urbana de ambos: grandes áreas residenciales, presencia de autopistas y una combinación de zonas densas y otras más dispersas. Esta mezcla da lugar a un número total de víctimas por accidentes más moderado, lo que explica su asociación en un mismo clúster.
+
+Por último, Staten Island se mantiene como un grupo aislado, con una densidad de apenas 1.782,2 habitantes por km². Este distrito, claramente menos poblado y urbanizado, muestra un patrón de accidentes significativamente distinto, con un número mucho menor de víctimas en comparación con el resto. Su baja densidad y características geográficas más suburbanas justifican su separación en un clúster independiente.
+
+Esta clasificación por clústeres, por tanto, se alinea coherentemente con la densidad de población de cada distrito y permite explicar diferencias en el comportamiento de los accidentes de tráfico a lo largo de la ciudad.
+
+Vamos a añadir un gráfico de barras comparando las variables entre los clústeres:
+
+1. Asignamos los clúster al dataframe:
+
+```{r}
+clusters <- cutree(hc, k = 3)
+
+data_borough_sum$cluster <- as.factor(clusters)
+
+```
+
+2. Convertimos a formato largo para ggplot:
+
+```{r}
+data_borough_long <- data_borough_sum |> 
+  pivot_longer(cols = c(total_injured, total_killed), 
+               names_to = "Variable", 
+               values_to = "Total")
+```
+
+3. Creamos el gráfico de barras:
+
+```{r, warning=FALSE}
+ggplot(data_borough_long, aes(x = Variable, y = Total, fill = cluster)) +
+  geom_col(position = "dodge") +
+  facet_wrap(~BOROUGH) +
+  labs(title = "Comparación de heridos y muertos por clúster y distrito",
+       x = "Variable", y = "Total", fill = "Clúster") +
+  theme_nyc()
+
+```
+
+Este gráfico demuestra que nuestra hipótesis anterior tiene sentido, ya que el clúster es capaz de agrupar los distintos distritos de una manera muy correcta en función del número total de heridos y muertos.
+
+Por último, añadiremos el shilouette para comprobar si nuestra disposición del clúster es buena o no:
+
+```{r, warning=FALSE}
+clusters <- cutree(hc, k = 3)
+
+dist_matrix <- dist(data_borough_sum[, c("total_injured", "total_killed")])
+
+sil <- silhouette(clusters, dist_matrix)
+rownames(sil) <- data_borough_sum$BOROUGH
+
+fviz_silhouette(sil) + 
+  ggtitle(paste("Índice de Silueta para k =", k)) +
+  theme_nyc()
+```
+
+El análisis de la silueta respalda en buena medida la clasificación obtenida. Los grupos formados por el Bronx junto a Manhattan, y Brooklyn junto a Queens, muestran una estructura muy sólida: sus valores de silueta son claramente altos, lo que indica que los distritos dentro de cada clúster se parecen mucho entre sí y están bien separados de los demás. Esto refuerza la idea de que ambos grupos tienen sentido, tanto desde un punto de vista numérico como contextual.
+
+Sin embargo, Staten Island, que ha quedado como un clúster independiente, presenta una silueta bastante más baja, de 0. Esto quiere decir que, aunque por sus características es razonable considerarlo un caso aparte, los datos no lo separan de forma tan clara como ocurre con los otros clústeres. Aun así, teniendo en cuenta su baja densidad de población y su configuración más suburbana, parece justificado mantenerlo como un grupo propio. Este contraste entre lo que dicen los números y lo que observamos en la realidad muestra lo útil que es combinar el análisis estadístico con la interpretación del contexto para entender mejor los resultados.
+
+### Análisis Cluster Jerárquico variable 'CAUSE':
+
+En cuanto a la variable CAUSE, correspondiente a los factores contribuyentes al accidente, nos ha parecido interesante aplicar también clusterización ya que tenemos muchas de ellas y de esta forma veremos si conseguimos reducirlas a un número razonable. Para ello, vamos a usar el algoritmo K-means, que nos permite agrupar los diferentes factores en diferentes grupos.
+
+Establecemos similitudes entre los nombres de las causas, mediante una matriz de distancias que representa la distancia entre las diferentes causas según su similitud. Para ello lo hacemos mediante el metodo de "cosine" ya que se basa en frecuencia de caracteres y es bueno si las cadenas comparten subcadenas similares. 
+
+
+```{r}
+dist_matrix <- stringdistmatrix(causes_cleaned$CAUSE, causes_cleaned$CAUSE, method = "cosine")  
+
+rownames(dist_matrix) <- causes_cleaned$CAUSE
+colnames(dist_matrix) <- causes_cleaned$CAUSE
+```
+
+
+Para aplicar clustering jerarquico, tomamos como método el "complete", que es una medida más conservadora. También hacemos un test de gap para que nos proporcione el mejor valor de k.
+
+```{r, warning=FALSE}
+hc <- hclust(as.dist(dist_matrix), method = "complete")
+
+fviz_nbclust(as.matrix(dist_matrix), FUN = hcut, method = "gap_stat", diss = TRUE)
+
+```
+El test nos dice que el valor óptimo es k = 2.
+Ahora vamos a realizar el clustering jerárquico y graficar los resultados, junto a la silueta para ver que tal realiza la clusterización:
+
+```{r, message=FALSE, warning=FALSE}
+k <- 2
+fviz_dend(x = hc,
+          k = k,
+          k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", 
+                       "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
+          color_labels_by_k = TRUE,
+          rect = TRUE,
+          rect_fill = TRUE,
+          cex = 0.5,
+          main = "Dendrograma - ward",
+          xlab = "observaciones",
+          ylab = "distancia",
+          sub = "") +
+  theme_nyc()
+
+clusters <- cutree(hc, k = k)
+
+# Calcular silueta
+sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+
+fviz_silhouette(sil) +
+  ggtitle(paste("Índice de Silueta para k =", k)) +
+  theme_nyc()
+```
+Aunque el método del Gap statistic sugiere que k = 2 es óptimo, la silueta indica que la calidad del agrupamiento es baja. Esto sugiere que las causas no están bien separadas en dos grupos distintos. Sin embargo, esto también puede ser un reflejo de la complejidad y diversidad de las causas de los accidentes, lo que hace difícil encontrar una separación clara entre ellas.
+
+Ahora vamos a probar con un valor de k = 9, que en el test de gap nos daba el valor más alto, a ver si conseguimos una mejor separación entre las causas. Esto nos permitirá ver si hay patrones más claros en los datos y si podemos agrupar las causas de manera más efectiva.
+
+```{r, message=FALSE, warning=FALSE}
+k <- 9
+fviz_dend(x = hc,
+          k = k,
+          k_colors = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",  "#e377c2", "#7f7f7f"),
+          color_labels_by_k = TRUE,
+          rect = TRUE,
+          rect_fill = TRUE,
+          cex = 0.5,
+          main = "Dendrograma - ward",
+          xlab = "observaciones",
+          ylab = "distancia",
+          sub = "") +
+  theme_nyc()
+
+clusters <- cutree(hc, k = k)
+
+# Calcular silueta
+sil <- silhouette(clusters, dist(as.dist(dist_matrix)))
+
+fviz_silhouette(sil) +
+  ggtitle(paste("Índice de Silueta para k =", k)) +
+  theme_nyc()
+```
+Según este gráfico, es verdad que hay causas que podrían no estar en el cluster correcto. Sin embargo, hay muchas otras que si estarían bien clasificadas, por lo que nos combiene aplicarlo ya que hemos conseguido reducir el número de causas de 52 a 8. Esto nos facilita el trabajo a la hora de querer utilizar dicha variable.
+
+## Análisis discriminante
+
+Con ayuda del análisis discriminante, decidimos estudiar la posibilidad de predecir el distrito al que pertenece un accidente respecto del resto de variables. Para ello vamos a seguir los siguientes pasos:
+
+### 1. Seleccionar las variables predictoras y agrupar categorías poco frecuentes:
+
+Con el objetivo de simplificar la interpretación de los resultados, hemos agrupado tanto los tipos de vehículos implicados como las causas del accidente en nueve categorías principales, reservando una décima categoría para aquellos casos menos frecuentes.
+
+```{r}
+top_veh_types <- data_sampled |> 
+  count(VEHICLE_1, sort = TRUE) |> 
+  slice_head(n = 10) |> 
+  pull(VEHICLE_1)
+
+data_sampled <- data_sampled |> 
+  mutate(VEHICLE_1 = ifelse(VEHICLE_1 %in% top_veh_types, VEHICLE_1, "OTROS"))
+
+top_veh_types <- data_sampled |> 
+  count(VEHICLE_2, sort = TRUE) |> 
+  slice_head(n = 10) |> 
+  pull(VEHICLE_2)
+
+data_sampled <- data_sampled |> 
+  mutate(VEHICLE_2 = ifelse(VEHICLE_2 %in% top_veh_types, VEHICLE_2, "OTROS"))
+
+top_causes <- data_sampled |> 
+  count(CAUSE, sort = TRUE) |> 
+  slice_head(n = 10) |> 
+  pull(CAUSE)
+
+data_sampled <- data_sampled |> 
+  mutate(CAUSE = ifelse(CAUSE %in% top_causes, CAUSE, "OTROS"))
+```
+
+Seleccionamos las posibles variables predictoras:
+
+```{r}
+data_lda <- data_sampled |> 
+  dplyr::select(BOROUGH,
+         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED, LONGITUDE, LATITUDE,
+         NUM_PEDESTRIANS_INJURED, NUM_PEDESTRIANS_KILLED,
+         NUM_CYCLIST_INJURED, NUM_CYCLIST_KILLED,
+         NUM_MOTORIST_INJURED, NUM_MOTORIST_KILLED,
+         VEHICLE_1, VEHICLE_2, CAUSE) |>
+  na.omit()
+```
+
+
+### 2. Convertir las variables categóricas en dummies:
+
+```{r}
+data_lda_dummy <- dummyVars(BOROUGH ~ ., data = data_lda)
+data_lda_transformed <- predict(data_lda_dummy, newdata = data_lda)
+data_lda_final <- data.frame(BOROUGH = data_lda$BOROUGH, data_lda_transformed)
+```
+
+### 3. Crear un conjunto de entrenamiento y test:
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(data_lda_final$BOROUGH, p = 0.7, list = FALSE)
+train_data <- data_lda_final[train_index, ]
+test_data <- data_lda_final[-train_index, ]
+```
+
+### 4. Aplicamos el análisis discriminante:
+
+```{r}
+lda_model <- lda(BOROUGH ~ ., data = train_data)
+lda_model
+
+```
+
+### 5. Evaluamos el modelo:
+
+```{r}
+predictions <- predict(lda_model, newdata = test_data)
+
+# matriz de confusion
+table(Predicho = predictions$class, Real = test_data$BOROUGH)
+```
+
+### 6. Visualizar las dos primeras funciones discriminantes:
+
+```{r, message=FALSE, warning=FALSE}
+lda_df <- data.frame(predictions$x, BOROUGH = test_data$BOROUGH)
+
+ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "Proyección LDA: Accidentes por distrito",
+       x = "Función discriminante 1",
+       y = "Función discriminante 2") +
+  theme_nyc()
+```
+
+Se observa que el modelo obtiene buenos resultados únicamente cuando se incluyen las variables LONGITUDE y LATITUDE. Sin embargo, esto introduce una especie de “trampa”, ya que esas variables están muy relacionadas con la ubicación exacta del accidente, lo que facilita en exceso la predicción. Por ello, para evaluar realmente la capacidad del modelo, resulta más apropiado repetir el análisis excluyendo estas variables y observar cómo se comporta con información menos directa.
+
+Vamos a comprobar entonces qué pasaría si realizaramos el mismo análisis sin esas variables:
+
+### 1.2 Selección de variables:
+
+Seleccionamos las variables, excepto LATITUDE y LONGITUDE:
+
+```{r}
+data_lda <- data_sampled |> 
+  dplyr::select(BOROUGH,
+         NUM_PERSONS_INJURED, NUM_PERSONS_KILLED,
+         NUM_PEDESTRIANS_INJURED, NUM_PEDESTRIANS_KILLED,
+         NUM_CYCLIST_INJURED, NUM_CYCLIST_KILLED,
+         NUM_MOTORIST_INJURED, NUM_MOTORIST_KILLED,
+         VEHICLE_1, VEHICLE_2, CAUSE) |>
+  na.omit()
+```
+
+
+### 2.2 Convertir las variables categóricas en dummies:
+
+```{r}
+data_lda_dummy <- dummyVars(BOROUGH ~ ., data = data_lda)
+data_lda_transformed <- predict(data_lda_dummy, newdata = data_lda)
+data_lda_final <- data.frame(BOROUGH = data_lda$BOROUGH, data_lda_transformed)
+```
+
+### 3.2 Crear un conjunto de entrenamiento y test:
+
+```{r}
+set.seed(123)
+train_index <- createDataPartition(data_lda_final$BOROUGH, p = 0.7, list = FALSE)
+train_data <- data_lda_final[train_index, ]
+test_data <- data_lda_final[-train_index, ]
+```
+
+### 4.2 Aplicamos el análisis discriminante:
+
+```{r}
+lda_model <- lda(BOROUGH ~ ., data = train_data)
+lda_model
+```
+
+### 5.2 Evaluamos el modelo:
+
+```{r}
+predictions <- predict(lda_model, newdata = test_data)
+
+# Matriz de confusión
+table(Predicho = predictions$class, Real = test_data$BOROUGH)
+```
+
+### 6.2 Visualizar las dos primeras funciones discriminantes:
+
+```{r, message=FALSE, warning=FALSE}
+lda_df <- data.frame(predictions$x, BOROUGH = test_data$BOROUGH)
+
+ggplot(lda_df, aes(x = LD1, y = LD2, color = BOROUGH)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "Proyección LDA: Accidentes por distrito sin LATITUDE y LONGITUDE",
+       x = "Función discriminante 1",
+       y = "Función discriminante 2") +
+  theme_nyc()
+```
+
+Una vez eliminadas las variables LONGITUDE y LATITUDE del análisis, se aprecia una pérdida notable en la calidad de la agrupación, los clústeres resultantes no muestran una estructura tan clara como antes. Esto indica que los grupos formados tienen menos coherencia interna y mayor solapamiento entre ellos. En otras palabras, sin la información geográfica precisa que aportaban esas variables, el modelo tiene más dificultades para diferenciar patrones consistentes en los datos. Este resultado confirma que LONGITUDE y LATITUDE eran variables muy influyentes (quizá demasiado) y que, al eliminarlas, se muestra la verdadera dificultad del problema de segmentación.
+ 
+## Análisis de correspondencia
+
+Uno de los análisis que consideramos relevantes fue el análisis de correspondencias, ya que permite explorar posibles relaciones entre dos variables categóricas. En este caso, nos centramos en estudiar si existía alguna asociación entre el día de la semana, la hora del accidente, la causa y el tipo del primer vehículo implicado.
+
+Para poder realizar este análisis, fue necesario calcular e incorporar al conjunto de datos las variables *HOUR* y *DAY_OF_WEEK*:
+
+```{r}
+data_sampled <- data_sampled |> 
+  mutate(HOUR = as.numeric(format(strptime(TIME, format = "%H:%M"), "%H")),
+         DAY_OF_WEEK = weekdays(as.Date(DATE, format = "%Y-%m-%d")))
+data_sampled$HOUR <- as.factor(data_sampled$HOUR)
+data_sampled$DAY_OF_WEEK <- toupper(data_sampled$DAY_OF_WEEK)
+data_sampled$DAY_OF_WEEK <- factor(trimws(data_sampled$DAY_OF_WEEK))
+```
+
+### 1. Tipo de vehiculo y causa:
+
+```{r, warning=FALSE, fig.width=8, fig.height=5}
+contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$CAUSE)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
+
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
+
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
+
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+# Gráfico interactivo
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
+
+
+```
+
+Los vehículos tipo Sedan y Station Wagon/SUV, que son los más comunes en los accidentes, se asocian estrechamente con causas frecuentes como la distracción o la inatención, así como no ceder el paso. Esto sugiere una relación lógica entre los tipos de vehículos más presentes en las calles y las causas más habituales de accidente.
+
+### 2. Tipo de vehiculo y hora:
+
+```{r, warning=FALSE, fig.width=8, fig.height=5}
+contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$HOUR)
+
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
+
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
+
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
+
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
+```
+
+Los taxis se relacionan principalmente con las horas de la madrugada, lo cual resulta coherente, ya que durante esas horas hay menos vehículos particulares en circulación y una mayor proporción de taxis, lo que aumenta su exposición a sufrir accidentes. En cambio, durante el resto del día, la distribución de los accidentes está más equilibrada entre los distintos tipos de vehículos, reflejando la actividad normal de tráfico.
+
+### 3. Causa del accidente y hora:
+
+```{r, warning=FALSE, fig.width=8, fig.height=5}
+contingency_table <- table(data_sampled$CAUSE, data_sampled$HOUR)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
+
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
+
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
+
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
+```
+
+Se observa una mayor asociación entre las causas como saltarse controles de tráfico y las horas de madrugada (alrededor de las 2 a las 5 a.m.), mientras que en franjas horarias como las de entrada o salida del trabajo o del colegio, predominan las causas relacionadas con la distracción, la fatiga o mantener una distancia inadecuada con otros vehículos.
+
+### 4. Causa del accidente y día de la semana: 
+
+```{r, warning=FALSE, fig.width=8, fig.height=5}
+contingency_table <- table(data_sampled$CAUSE, data_sampled$DAY_OF_WEEK)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
+
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
+
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
+
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
+```
+
+Durante los fines de semana, las causas más frecuentes de los accidentes están relacionadas con la fatiga, la distracción o el hecho de saltarse controles, lo cual podría explicarse por la conducción nocturna más común en esas fechas.
+
+### 5. Tipo de vehículo y día de la semana: 
+
+```{r, warning=FALSE, fig.width=8, fig.height=5}
+contingency_table <- table(data_sampled$VEHICLE_1, data_sampled$DAY_OF_WEEK)
+contingency_table <- contingency_table[rowSums(contingency_table) > 0, colSums(contingency_table) > 0]
+
+ca_result <- FactoMineR::CA(contingency_table, graph = FALSE)
+
+row_coord <- as.data.frame(ca_result$row$coord)
+col_coord <- as.data.frame(ca_result$col$coord)
+
+row_coord$label <- rownames(row_coord)
+col_coord$label <- rownames(col_coord)
+row_coord$type <- "Fila"
+col_coord$type <- "Columna"
+
+biplot_data <- rbind(
+  data.frame(Dim1 = row_coord[,1], Dim2 = row_coord[,2], label = row_coord$label, type = row_coord$type),
+  data.frame(Dim1 = col_coord[,1], Dim2 = col_coord[,2], label = col_coord$label, type = col_coord$type)
+)
+
+plot_ly(
+  data = biplot_data,
+  x = ~Dim1, y = ~Dim2,
+  type = 'scatter',
+  mode = 'markers+text',
+  text = ~label,
+  textposition = 'bottom center',
+  marker = list(size = 7),
+  color = ~type,
+  colors = c("Fila" = "#1F3B73", "Columna" = "#FF4C4C"),
+  textfont = list(size = 12)
+) |> 
+  layout(
+    title = list(
+      text = "<b>Biplot del Análisis de Correspondencias<b>",
+      x = 0.5,
+      font = list(size = 16, color = "#1F3B73", family = "Roboto Condensed")
+    ),
+    xaxis = list(
+      title = list(text = "<b>Dim 1<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    yaxis = list(
+      title = list(text = "<b>Dim 2<b>", 
+                   font = list(size = 12, color = "#2E2E2E", family = "Roboto Condensed")),
+      tickfont = list(color = "#2E2E2E", family = "Roboto Condensed"),
+      gridcolor = "#DADADA"
+    ),
+    plot_bgcolor = "#F4F4F4",
+    paper_bgcolor = "#F4F4F4",
+    legend = list(
+      bgcolor = "#F4F4F4",
+      bordercolor = "#F4F4F4",
+      font = list(color = "#2E2E2E", family = "Roboto Condensed")
+    )
+  )
+```
+
+Desde el jueves hasta el domingo se observa una mayor asociación entre los accidentes y los vehículos tipo Sedan y Taxi. Esto tiene sentido considerando que el tráfico se incrementa en esos días, especialmente durante los fines de semana, cuando es más habitual la presencia de estos vehículos y, en consecuencia, una mayor probabilidad de siniestros.
+
+# CONCLUSIONES
+
+Para finalizar trataremos de resumir los puntos más importantes que hemos visto a lo largo del análisis.
+
+En primer lugar, es importante mencionar la limpieza inicial de datos que hemos tenido que realizar para poder obtener un conjunto con el que trabajar. Es un paso previo imprescindible cuando se trabaja con cualquier dataset de este tamaño, para luego poder realizar los análisis de forma limpia y correcta.
+
+Por otro lado, hemos observado que debido a la naturaleza de los datos podemos clasificar las variables en varios grupos: Variables de tiempo, variables de localización, variables numéricas de heridos y fallecidos, variables de causa del accidente y variables de los vehiculos implicados. Con estos grupos, una de las peculiaridades importantes es que sólo tenemos datos numéricos en las variables de heridos y fallecidos, pero son variables enteras y además no distribuídas normalmente, por lo que hemos visto que limita bastante a la hora de realizar ciertos análisis. Este también es un punto importante a considerar al empezar a trabajar con un dataset, ya que no siempre vamos a tener todas las variables numéricas que nos gustaría, y deberemos adaptar las metodologías en consecuencia.
+
+En cuanto a las variables categóricas como son el distrito y la causa del accidente, lo primero que hemos observado es que hay muchas categorías diferentes, debido a que cada forma de escribir una causa por ejemplo ocasiona una categoría distinta. Además, también hemos observado en estas variables que muchas de estas categorías diferentes tenian una frecuencia muy baja, y la mayoria se podían agrupar en las categorías con mayor frecuencia. A partir de estas variables, hemos aplicado diferentes análisis como clusterización para agrupar las causas y reducirlas significativamente, entre otras muchas. Esta ha sido una característica muy a tener en cuenta en nuestros datos también, y en la que hemos basado gran parte de nuestro análisis.
+
+Además, es un dataset que nos ha dado mucho juego en aspectos como los mapas gracias a las variables de ubicación, ya que por ese lado se pueden realizar análisis muy visuales y sobre todo interactivos que hemos profundizado más en la aplicación, para ver evoluciones de accidentes a lo largo del tiempo y accidentes en distintos grupos filtrados. Consideramos que es el aspecto más característico de los datos, ya que además la ubicación se mide de forma objetiva, e incluso puede dar pie a análisis y predicciones por zonas concretas.
+
+Siguiendo con lo anterior, hemos pensado en posibles opciones que daría este dataset con ligeras modificaciones para continuar trabajándolo en el futuro. Si hubiera información acerca de la zona del coche afectada en el accidente o el importe de la reparación, podríamos tratar de entender que tipo de accidentes son más frecuentes en cada zona de Nueva York. Además, también podría ser interesante almacenar información acerca de la meteorología del momento, para así ver que influencia tienen las condiciones de la calzada en los accidentes. Y por último, también podría ser interesante almacenar la edad, sexo o etnia de los implicados, para así ver si hay algún tipo de patrón o tendencia según el perfil de cada persona.
+
+
+
+
+
+
+
+
+
+
+
+
+>>>>>>> 430b1c7b277536c171b74075cfd32142bb505ba3:docs/Análisis Exploratorio Datos.Rmd
